@@ -557,8 +557,6 @@ export function optimizeShiftPlan(
   totalAvailableWorkers: number,
   period: number = 0,
 ): PeriodShiftPlan {
-  const plan = emptyPeriodShiftPlan();
-
   // 获取该期的黄色和橙色格子
   const yellowCells = period > 0 ? getYellowCells(period) : [];
   const orangeCells = period > 0 ? getOrangeCells(period) : [];
@@ -569,8 +567,8 @@ export function optimizeShiftPlan(
   }
 
   // ============================================================
-  // 颜色感知求解：只在黄色格子中分配产量
-  // 使用约束优化搜索：遍历可行解空间，找到使6个约束残差之和最小的方案
+  // 全局约束感知求解算法
+  // 核心原则：每次分配产量后，都检查全部6个约束是否满足
   // ============================================================
 
   // 将黄色格子按班次分组
@@ -581,70 +579,300 @@ export function optimizeShiftPlan(
     yellowByShift[shift].push(product);
   }
 
-  // 计算每个黄色格子的产量上限（基于机器和人力约束的粗估）
-  // 单个产品的最大产量不超过 min(机器上限, 人力上限)
-  const maxPerCell: Record<string, number> = {};
-  for (const { shift, product } of yellowCells) {
-    const isOT = shift === 'ot1' || shift === 'ot2';
-    const machineMax = Math.floor(machines / (MACHINE_PER[product] * (isOT ? 2 : 1)));
-    const laborMax = Math.floor(totalAvailableWorkers / (LABOR_PER[product] * (isOT ? 2 : 1)));
-    maxPerCell[`${shift}_${product}`] = Math.min(machineMax, laborMax, 600);
-  }
+  // 全局约束计算函数（与 simulateProduction 完全一致）
+  const calcConstraints = (p: PeriodShiftPlan) => {
+    const s1L = PRODUCT_KEYS.reduce((s, k) => s + (p.shift1[k] || 0) * LABOR_PER[k], 0);
+    const s2L = PRODUCT_KEYS.reduce((s, k) => s + (p.shift2[k] || 0) * LABOR_PER[k], 0);
+    const s1M = PRODUCT_KEYS.reduce((s, k) => s + (p.shift1[k] || 0) * MACHINE_PER[k], 0);
+    const s2M = PRODUCT_KEYS.reduce((s, k) => s + (p.shift2[k] || 0) * MACHINE_PER[k], 0);
+    const o1L = PRODUCT_KEYS.reduce((s, k) => s + (p.ot1[k] || 0) * LABOR_PER[k] * 2, 0);
+    const o1M = PRODUCT_KEYS.reduce((s, k) => s + (p.ot1[k] || 0) * MACHINE_PER[k] * 2, 0);
+    const o2L = PRODUCT_KEYS.reduce((s, k) => s + (p.ot2[k] || 0) * LABOR_PER[k] * 2, 0);
+    const o2M = PRODUCT_KEYS.reduce((s, k) => s + (p.ot2[k] || 0) * MACHINE_PER[k] * 2, 0);
+    return {
+      c1: totalAvailableWorkers - s1L - s2L,  // 一班后可用人数
+      c2: machines - s1M,                      // 一班后可用机器
+      c3: s1L - o1L,                           // 一加后可用人数
+      c4: machines - s2M - o1M,                // 二班后可用机器
+      c5: s2L - o2L,                           // 二加后可用人数
+      c6: machines - o2M,                      // 二加后可用机器
+    };
+  };
 
-  // 策略：按班次顺序逐步求解，每步利用约束方程求解析解
-  // 这比暴力搜索高效得多
+  // 评分函数：所有约束残差绝对值之和，超限大幅惩罚
+  const scorePlan = (p: PeriodShiftPlan) => {
+    const c = calcConstraints(p);
+    let score = 0;
+    for (const v of [c.c1, c.c2, c.c3, c.c4, c.c5, c.c6]) {
+      if (v < -0.001) score += Math.abs(v) * 1000; // 超限大幅惩罚
+      else score += Math.abs(v);
+    }
+    return score;
+  };
 
-  // === Step 1: 第一班（shift1）黄色格子 → 目标：一班后可用机器接近0 ===
-  const s1Products = yellowByShift.shift1;
-  if (s1Products.length > 0) {
-    _solveShiftGroup(plan, 'shift1', s1Products, machines, MACHINE_PER, 1, maxPerCell);
-  }
+  // 检查方案是否合法（所有约束 >= -0.001）
+  const isFeasible = (p: PeriodShiftPlan) => {
+    const c = calcConstraints(p);
+    return c.c1 >= -0.001 && c.c2 >= -0.001 && c.c3 >= -0.001 &&
+           c.c4 >= -0.001 && c.c5 >= -0.001 && c.c6 >= -0.001;
+  };
 
-  // === Step 2: 第二班（shift2）黄色格子 → 目标：一班后可用人数接近0 ===
-  const s2Products = yellowByShift.shift2;
-  if (s2Products.length > 0) {
-    // 一班后可用人数 = totalAvailableWorkers - shift1Labor - shift2Labor ≈ 0
-    const shift1Labor = PRODUCT_KEYS.reduce(
-      (s, p) => s + (plan.shift1[p] || 0) * LABOR_PER[p], 0
-    );
-    const remainingLabor = totalAvailableWorkers - shift1Labor;
-    _solveShiftGroup(plan, 'shift2', s2Products, remainingLabor, LABOR_PER, 1, maxPerCell);
-  }
+  // 生成候选方案：为每个班次生成多个候选分配，然后组合搜索
+  // 策略：对每个班次生成候选值，然后用贪心+回溯找到最优组合
 
-  // === Step 3: 一加（ot1）黄色格子 → 目标：二班后可用机器接近0 ===
-  const ot1Products = yellowByShift.ot1;
-  if (ot1Products.length > 0) {
-    // 二班后可用机器 = machines - shift2MachineUsed - ot1MachineUsed*2 ≈ 0
-    const shift2MachineUsed = PRODUCT_KEYS.reduce(
-      (s, p) => s + (plan.shift2[p] || 0) * MACHINE_PER[p], 0
-    );
-    const remainingMachine = machines - shift2MachineUsed;
-    _solveShiftGroup(plan, 'ot1', ot1Products, remainingMachine, MACHINE_PER, 2, maxPerCell);
-  }
+  let bestPlan = emptyPeriodShiftPlan();
+  let bestScore = Infinity;
 
-  // === Step 4: 二加（ot2）黄色格子 → 目标：二加后可用人数接近0 & 二加后可用机器尽量小 ===
-  const ot2Products = yellowByShift.ot2;
-  if (ot2Products.length > 0) {
-    // 二加后可用人数 = shift2Labor - ot2LaborUsed*2 ≈ 0
-    const shift2Labor = PRODUCT_KEYS.reduce(
-      (s, p) => s + (plan.shift2[p] || 0) * LABOR_PER[p], 0
-    );
-    if (ot2Products.length === 1) {
-      // 单产品：直接求解（使用 floor 禁止超限）
-      const p = ot2Products[0];
-      const exact = shift2Labor / (LABOR_PER[p] * 2);
-      const maxVal = maxPerCell[`ot2_${p}`] || 0;
-      plan.ot2[p] = Math.max(0, Math.min(Math.floor(exact), maxVal));
-    } else {
-      // 多产品：搜索最优组合（类似原算法的二加求解）
-      _solveOt2Multi(plan, ot2Products, shift2Labor, machines, maxPerCell);
+  // 策略：对 shift1 尝试多个缩放比例，然后对每个比例求解后续班次
+  // shift1 的资源上限不应该是全部机器，而是一个比例
+  const fractions = [0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0];
+
+  for (const frac of fractions) {
+    const plan = emptyPeriodShiftPlan();
+    const s1Resource = machines * frac;
+
+    // Step 1: shift1 — 目标：使用机器资源的 frac 比例
+    const s1Prods = yellowByShift.shift1;
+    if (s1Prods.length > 0) {
+      _solveShiftGroupSafe(plan, 'shift1', s1Prods, s1Resource, MACHINE_PER, 1);
+    }
+
+    // Step 2: shift2 — 目标：一班后可用人数接近0
+    const s2Prods = yellowByShift.shift2;
+    if (s2Prods.length > 0) {
+      const s1Labor = PRODUCT_KEYS.reduce((s, k) => s + (plan.shift1[k] || 0) * LABOR_PER[k], 0);
+      const remainLabor = totalAvailableWorkers - s1Labor;
+      // 同时约束 shift2 的机器消耗不能超过机器数
+      _solveShiftGroupDual(plan, 'shift2', s2Prods, remainLabor, LABOR_PER, machines, MACHINE_PER, 1);
+    }
+
+    // Step 3: ot1 — 目标：二班后可用机器接近0 & 一加后可用人数接近0
+    const ot1Prods = yellowByShift.ot1;
+    if (ot1Prods.length > 0) {
+      const s1Labor = PRODUCT_KEYS.reduce((s, k) => s + (plan.shift1[k] || 0) * LABOR_PER[k], 0);
+      const s2Machine = PRODUCT_KEYS.reduce((s, k) => s + (plan.shift2[k] || 0) * MACHINE_PER[k], 0);
+      // c3: s1Labor - o1Labor*2 >= 0 → o1Labor*2 <= s1Labor
+      // c4: machines - s2Machine - o1Machine*2 >= 0 → o1Machine*2 <= machines - s2Machine
+      const laborLimit = s1Labor; // o1Labor*2 的上限
+      const machineLimit = machines - s2Machine; // o1Machine*2 的上限
+      // 取两个约束的较小值作为资源上限
+      const ot1Resource = Math.min(laborLimit, machineLimit);
+      if (ot1Resource > 0) {
+        // 用机器约束求解（因为 c4 是机器约束）
+        _solveShiftGroupSafe(plan, 'ot1', ot1Prods, machineLimit, MACHINE_PER, 2);
+        // 检查 c3 是否也满足
+        const o1LaborUsed = PRODUCT_KEYS.reduce((s, k) => s + (plan.ot1[k] || 0) * LABOR_PER[k] * 2, 0);
+        if (o1LaborUsed > s1Labor + 0.001) {
+          // c3 超限，用人力约束重新求解
+          for (const k of PRODUCT_KEYS) plan.ot1[k] = 0;
+          _solveShiftGroupSafe(plan, 'ot1', ot1Prods, laborLimit, LABOR_PER, 2);
+        }
+      }
+    }
+
+    // Step 4: ot2 — 目标：二加后可用人数接近0 & 二加后可用机器接近0
+    const ot2Prods = yellowByShift.ot2;
+    if (ot2Prods.length > 0) {
+      const s2Labor = PRODUCT_KEYS.reduce((s, k) => s + (plan.shift2[k] || 0) * LABOR_PER[k], 0);
+      // c5: s2Labor - o2Labor*2 >= 0 → o2Labor*2 <= s2Labor
+      // c6: machines - o2Machine*2 >= 0 → o2Machine*2 <= machines
+      if (ot2Prods.length === 1) {
+        const p = ot2Prods[0];
+        const fromLabor = s2Labor / (LABOR_PER[p] * 2);
+        const fromMachine = machines / (MACHINE_PER[p] * 2);
+        plan.ot2[p] = Math.max(0, Math.floor(Math.min(fromLabor, fromMachine)));
+      } else {
+        _solveOt2MultiSafe(plan, ot2Prods, s2Labor, machines);
+      }
+    }
+
+    // 最终约束验证
+    _enforceConstraints(plan, machines, totalAvailableWorkers);
+
+    const score = scorePlan(plan);
+    if (score < bestScore) {
+      bestScore = score;
+      bestPlan = JSON.parse(JSON.stringify(plan));
     }
   }
 
-  // === 最终约束验证：确保所有6个约束检查点均 >= 0 ===
-  _enforceConstraints(plan, machines, totalAvailableWorkers);
+  return bestPlan;
+}
 
-  return plan;
+/**
+ * 安全的班次产品分配（严格使用 floor，禁止超限）
+ */
+function _solveShiftGroupSafe(
+  plan: PeriodShiftPlan,
+  shift: ShiftName,
+  products: ProductKey[],
+  resource: number,
+  costPer: Record<ProductKey, number>,
+  multiplier: number,
+): void {
+  if (products.length === 0 || resource <= 0) return;
+
+  if (products.length === 1) {
+    const p = products[0];
+    plan[shift][p] = Math.max(0, Math.floor(resource / (costPer[p] * multiplier)));
+    return;
+  }
+
+  if (products.length === 2) {
+    const [p1, p2] = products;
+    const max1 = Math.floor(resource / (costPer[p1] * multiplier));
+    let bestScore = Infinity, bestV1 = 0, bestV2 = 0;
+    const step = Math.max(1, Math.floor(max1 / 300));
+    for (let v1 = 0; v1 <= max1; v1 += step) {
+      const remaining = resource - v1 * costPer[p1] * multiplier;
+      if (remaining < 0) break;
+      const v2 = Math.floor(remaining / (costPer[p2] * multiplier));
+      if (v2 < 0) continue;
+      const residual = resource - (v1 * costPer[p1] + v2 * costPer[p2]) * multiplier;
+      if (residual < 0) continue;
+      if (residual < bestScore) {
+        bestScore = residual;
+        bestV1 = v1;
+        bestV2 = v2;
+      }
+    }
+    plan[shift][p1] = bestV1;
+    plan[shift][p2] = bestV2;
+    return;
+  }
+
+  // 3+产品：贪心分配，严格使用 floor
+  const sorted = [...products].sort((a, b) => costPer[b] - costPer[a]);
+  let remaining = resource;
+  for (let i = 0; i < sorted.length; i++) {
+    const p = sorted[i];
+    if (i === sorted.length - 1) {
+      plan[shift][p] = Math.max(0, Math.floor(remaining / (costPer[p] * multiplier)));
+    } else {
+      const share = remaining / (sorted.length - i);
+      const val = Math.max(0, Math.floor(share / (costPer[p] * multiplier)));
+      plan[shift][p] = val;
+      remaining -= val * costPer[p] * multiplier;
+      if (remaining <= 0) break;
+    }
+  }
+}
+
+/**
+ * 双约束班次分配（同时考虑人力和机器约束）
+ */
+function _solveShiftGroupDual(
+  plan: PeriodShiftPlan,
+  shift: ShiftName,
+  products: ProductKey[],
+  laborResource: number,
+  laborCost: Record<ProductKey, number>,
+  machineResource: number,
+  machineCost: Record<ProductKey, number>,
+  multiplier: number,
+): void {
+  if (products.length === 0 || laborResource <= 0) return;
+
+  if (products.length === 1) {
+    const p = products[0];
+    const fromLabor = Math.floor(laborResource / (laborCost[p] * multiplier));
+    const fromMachine = Math.floor(machineResource / (machineCost[p] * multiplier));
+    plan[shift][p] = Math.max(0, Math.min(fromLabor, fromMachine));
+    return;
+  }
+
+  if (products.length === 2) {
+    const [p1, p2] = products;
+    const max1Labor = Math.floor(laborResource / (laborCost[p1] * multiplier));
+    const max1Machine = Math.floor(machineResource / (machineCost[p1] * multiplier));
+    const max1 = Math.min(max1Labor, max1Machine);
+    let bestScore = Infinity, bestV1 = 0, bestV2 = 0;
+    const step = Math.max(1, Math.floor(max1 / 300));
+    for (let v1 = 0; v1 <= max1; v1 += step) {
+      const remainLabor = laborResource - v1 * laborCost[p1] * multiplier;
+      const remainMachine = machineResource - v1 * machineCost[p1] * multiplier;
+      if (remainLabor < 0 || remainMachine < 0) break;
+      const v2FromLabor = Math.floor(remainLabor / (laborCost[p2] * multiplier));
+      const v2FromMachine = Math.floor(remainMachine / (machineCost[p2] * multiplier));
+      const v2 = Math.min(v2FromLabor, v2FromMachine);
+      if (v2 < 0) continue;
+      const laborResidual = laborResource - (v1 * laborCost[p1] + v2 * laborCost[p2]) * multiplier;
+      const machineResidual = machineResource - (v1 * machineCost[p1] + v2 * machineCost[p2]) * multiplier;
+      if (laborResidual < 0 || machineResidual < 0) continue;
+      const score = laborResidual * 3 + machineResidual; // 人力残差权重更高
+      if (score < bestScore) {
+        bestScore = score;
+        bestV1 = v1;
+        bestV2 = v2;
+      }
+    }
+    plan[shift][p1] = bestV1;
+    plan[shift][p2] = bestV2;
+    return;
+  }
+
+  // 3+产品：取两个约束的较小值
+  const sorted = [...products].sort((a, b) => laborCost[b] - laborCost[a]);
+  let remainLabor = laborResource;
+  let remainMachine = machineResource;
+  for (let i = 0; i < sorted.length; i++) {
+    const p = sorted[i];
+    if (i === sorted.length - 1) {
+      const fromLabor = Math.floor(remainLabor / (laborCost[p] * multiplier));
+      const fromMachine = Math.floor(remainMachine / (machineCost[p] * multiplier));
+      plan[shift][p] = Math.max(0, Math.min(fromLabor, fromMachine));
+    } else {
+      const share = Math.min(remainLabor, remainMachine) / (sorted.length - i);
+      const fromLabor = Math.floor(share / (laborCost[p] * multiplier));
+      const fromMachine = Math.floor(share / (machineCost[p] * multiplier));
+      const val = Math.max(0, Math.min(fromLabor, fromMachine));
+      plan[shift][p] = val;
+      remainLabor -= val * laborCost[p] * multiplier;
+      remainMachine -= val * machineCost[p] * multiplier;
+      if (remainLabor <= 0 || remainMachine <= 0) break;
+    }
+  }
+}
+
+/**
+ * 安全的二加多产品求解（同时检查人力和机器约束）
+ */
+function _solveOt2MultiSafe(
+  plan: PeriodShiftPlan,
+  products: ProductKey[],
+  shift2Labor: number,
+  machines: number,
+): void {
+  if (products.length === 2) {
+    const [p1, p2] = products;
+    const max1FromLabor = Math.floor(shift2Labor / (LABOR_PER[p1] * 2));
+    const max1FromMachine = Math.floor(machines / (MACHINE_PER[p1] * 2));
+    const max1 = Math.min(max1FromLabor, max1FromMachine);
+    let bestScore = Infinity, bestV1 = 0, bestV2 = 0;
+    const step = Math.max(1, Math.floor(max1 / 300));
+    for (let v1 = 0; v1 <= max1; v1 += step) {
+      const remainLabor = shift2Labor - v1 * LABOR_PER[p1] * 2;
+      const remainMachine = machines - v1 * MACHINE_PER[p1] * 2;
+      if (remainLabor < 0 || remainMachine < 0) break;
+      const v2FromLabor = Math.floor(remainLabor / (LABOR_PER[p2] * 2));
+      const v2FromMachine = Math.floor(remainMachine / (MACHINE_PER[p2] * 2));
+      const v2 = Math.min(v2FromLabor, v2FromMachine);
+      if (v2 < 0) continue;
+      const laborRemain = shift2Labor - (v1 * LABOR_PER[p1] + v2 * LABOR_PER[p2]) * 2;
+      const machineRemain = machines - (v1 * MACHINE_PER[p1] + v2 * MACHINE_PER[p2]) * 2;
+      if (laborRemain < 0 || machineRemain < 0) continue;
+      const score = laborRemain * 3 + machineRemain;
+      if (score < bestScore) {
+        bestScore = score;
+        bestV1 = v1;
+        bestV2 = v2;
+      }
+    }
+    plan.ot2[p1] = bestV1;
+    plan.ot2[p2] = bestV2;
+  } else {
+    _solveShiftGroupSafe(plan, 'ot2', products, shift2Labor, LABOR_PER, 2);
+  }
 }
 
 /**

@@ -528,8 +528,8 @@ function evaluatePlan(
 
   let score = 0;
   for (const c of [c1, c2, c3, c4, c5, c6]) {
-    if (c < -0.5) {
-      score += Math.abs(c) * 100; // 超限大幅惩罚
+    if (c < -0.001) {
+      score += Math.abs(c) * 1000; // 超限大幅惩罚，严格禁止
     } else {
       score += Math.abs(c);
     }
@@ -656,105 +656,53 @@ function _enforceConstraints(
   machines: number,
   totalAvailableWorkers: number,
 ): void {
-  // 计算6个约束检查点
-  const _calcConstraints = (p: PeriodShiftPlan) => {
-    const s1Machine = PRODUCT_KEYS.reduce((s, k) => s + (p.shift1[k] || 0) * MACHINE_PER[k], 0);
+  // 使用与 simulateProduction 完全一致的约束计算公式
+  const _calc = (p: PeriodShiftPlan) => {
     const s1Labor = PRODUCT_KEYS.reduce((s, k) => s + (p.shift1[k] || 0) * LABOR_PER[k], 0);
-    const s2Machine = PRODUCT_KEYS.reduce((s, k) => s + (p.shift2[k] || 0) * MACHINE_PER[k], 0);
     const s2Labor = PRODUCT_KEYS.reduce((s, k) => s + (p.shift2[k] || 0) * LABOR_PER[k], 0);
-    const o1Machine = PRODUCT_KEYS.reduce((s, k) => s + (p.ot1[k] || 0) * MACHINE_PER[k], 0);
-    const o1Labor = PRODUCT_KEYS.reduce((s, k) => s + (p.ot1[k] || 0) * LABOR_PER[k], 0);
-    const o2Machine = PRODUCT_KEYS.reduce((s, k) => s + (p.ot2[k] || 0) * MACHINE_PER[k], 0);
-    const o2Labor = PRODUCT_KEYS.reduce((s, k) => s + (p.ot2[k] || 0) * LABOR_PER[k], 0);
-
-    return {
-      c1_shift1Machine: machines - s1Machine,                          // 一班后可用机器
-      c2_availWorkers: totalAvailableWorkers - s1Labor - s2Labor,      // 一班后可用人数
-      c3_ot1Labor: s1Labor - o1Labor,                                  // 一加后可用人数
-      c4_shift2Machine: machines - s2Machine - o1Machine * 2,          // 二班后可用机器
-      c5_ot2Labor: s2Labor - o2Labor * 2,                              // 二加后可用人数
-      c6_ot2Machine: machines - o2Machine * 2,                         // 二加后可用机器
-    };
+    const s1Machine = PRODUCT_KEYS.reduce((s, k) => s + (p.shift1[k] || 0) * MACHINE_PER[k], 0);
+    const s2Machine = PRODUCT_KEYS.reduce((s, k) => s + (p.shift2[k] || 0) * MACHINE_PER[k], 0);
+    const o1Labor = PRODUCT_KEYS.reduce((s, k) => s + (p.ot1[k] || 0) * LABOR_PER[k] * 2, 0);
+    const o1Machine = PRODUCT_KEYS.reduce((s, k) => s + (p.ot1[k] || 0) * MACHINE_PER[k] * 2, 0);
+    const o2Labor = PRODUCT_KEYS.reduce((s, k) => s + (p.ot2[k] || 0) * LABOR_PER[k] * 2, 0);
+    const o2Machine = PRODUCT_KEYS.reduce((s, k) => s + (p.ot2[k] || 0) * MACHINE_PER[k] * 2, 0);
+    return [
+      { value: machines - s1Machine,                    shift: 'shift1' as ShiftName, resource: 'machine' as const },  // 一班后可用机器
+      { value: totalAvailableWorkers - s1Labor - s2Labor, shift: 'shift2' as ShiftName, resource: 'labor' as const },   // 一班后可用人数
+      { value: s1Labor - o1Labor,                       shift: 'ot1' as ShiftName, resource: 'labor' as const },       // 一加后可用人数
+      { value: machines - s2Machine - o1Machine,        shift: 'ot1' as ShiftName, resource: 'machine' as const },     // 二班后可用机器
+      { value: s2Labor - o2Labor,                       shift: 'ot2' as ShiftName, resource: 'labor' as const },       // 二加后可用人数
+      { value: machines - o2Machine,                    shift: 'ot2' as ShiftName, resource: 'machine' as const },     // 二加后可用机器
+    ];
   };
 
-  const constraints = _calcConstraints(plan);
+  // 迭代修正：循环检查直到所有约束都满足，最多迭代 20 次防止无限循环
+  for (let iter = 0; iter < 20; iter++) {
+    const constraints = _calc(plan);
+    let anyViolation = false;
 
-  // 检查每个约束，如果超限则逐步修正
-  // 约束1: 一班后可用机器 >= 0 → 减少 shift1 产量
-  if (constraints.c1_shift1Machine < -0.001) {
-    for (const pk of PRODUCT_KEYS) {
-      if (plan.shift1[pk] > 0) {
-        const excess = -constraints.c1_shift1Machine;
-        const reduce = Math.ceil(excess / MACHINE_PER[pk]);
-        plan.shift1[pk] = Math.max(0, plan.shift1[pk] - reduce);
-        break;
+    for (const c of constraints) {
+      if (c.value < -0.001) {
+        anyViolation = true;
+        const shift = c.shift;
+        const isOT = shift === 'ot1' || shift === 'ot2';
+        const costMap = c.resource === 'machine' ? MACHINE_PER : LABOR_PER;
+        const multiplier = isOT ? 2 : 1;
+
+        // 从该班次中找到有产量的产品，减少产量
+        for (const pk of PRODUCT_KEYS) {
+          if (plan[shift][pk] > 0) {
+            const excess = -c.value;
+            const perUnit = costMap[pk] * multiplier;
+            const reduce = Math.ceil(excess / perUnit);
+            plan[shift][pk] = Math.max(0, plan[shift][pk] - reduce);
+            break;
+          }
+        }
       }
     }
-  }
 
-  // 约束2: 一班后可用人数 >= 0 → 减少 shift2 产量
-  const c2 = _calcConstraints(plan);
-  if (c2.c2_availWorkers < -0.001) {
-    for (const pk of PRODUCT_KEYS) {
-      if (plan.shift2[pk] > 0) {
-        const excess = -c2.c2_availWorkers;
-        const reduce = Math.ceil(excess / LABOR_PER[pk]);
-        plan.shift2[pk] = Math.max(0, plan.shift2[pk] - reduce);
-        break;
-      }
-    }
-  }
-
-  // 约束3: 一加后可用人数 >= 0 → 减少 ot1 产量
-  const c3 = _calcConstraints(plan);
-  if (c3.c3_ot1Labor < -0.001) {
-    for (const pk of PRODUCT_KEYS) {
-      if (plan.ot1[pk] > 0) {
-        const excess = -c3.c3_ot1Labor;
-        const reduce = Math.ceil(excess / LABOR_PER[pk]);
-        plan.ot1[pk] = Math.max(0, plan.ot1[pk] - reduce);
-        break;
-      }
-    }
-  }
-
-  // 约束4: 二班后可用机器 >= 0 → 减少 ot1 产量
-  const c4 = _calcConstraints(plan);
-  if (c4.c4_shift2Machine < -0.001) {
-    for (const pk of PRODUCT_KEYS) {
-      if (plan.ot1[pk] > 0) {
-        const excess = -c4.c4_shift2Machine;
-        const reduce = Math.ceil(excess / (MACHINE_PER[pk] * 2));
-        plan.ot1[pk] = Math.max(0, plan.ot1[pk] - reduce);
-        break;
-      }
-    }
-  }
-
-  // 约束5: 二加后可用人数 >= 0 → 减少 ot2 产量
-  const c5 = _calcConstraints(plan);
-  if (c5.c5_ot2Labor < -0.001) {
-    for (const pk of PRODUCT_KEYS) {
-      if (plan.ot2[pk] > 0) {
-        const excess = -c5.c5_ot2Labor;
-        const reduce = Math.ceil(excess / (LABOR_PER[pk] * 2));
-        plan.ot2[pk] = Math.max(0, plan.ot2[pk] - reduce);
-        break;
-      }
-    }
-  }
-
-  // 约束6: 二加后可用机器 >= 0 → 减少 ot2 产量
-  const c6 = _calcConstraints(plan);
-  if (c6.c6_ot2Machine < -0.001) {
-    for (const pk of PRODUCT_KEYS) {
-      if (plan.ot2[pk] > 0) {
-        const excess = -c6.c6_ot2Machine;
-        const reduce = Math.ceil(excess / (MACHINE_PER[pk] * 2));
-        plan.ot2[pk] = Math.max(0, plan.ot2[pk] - reduce);
-        break;
-      }
-    }
+    if (!anyViolation) break;
   }
 }
 

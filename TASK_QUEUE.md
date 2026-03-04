@@ -8,8 +8,8 @@
 
 | 编号 | 需求描述 | 优先级 | 状态 | 提出时间 | 完成时间 |
 |------|----------|--------|------|----------|----------|
-| F001 | 参数模拟器“一键排产最优”和“本期最优推荐”求解数据应按必填(黄色)优先、选填(橙色)其次、灰色不填的优先级排产 | HIGH | 已完成 | 2026-03-05 | 2026-03-05 |
-| F002 | 优化求解算法，严格禁止任何约束超限（负值） | HIGH | 执行中 | 2026-03-05 | - |
+| F001 | 参数模拟器"一键排产最优"和"本期最优推荐"求解数据应按必填(黄色)优先、选填(橙色)其次、灰色不填的优先级排产 | HIGH | 已完成 | 2026-03-05 | 2026-03-05 |
+| F002 | 优化求解算法，严格禁止任何约束超限（负值） | HIGH | 已完成 | 2026-03-05 | 2026-03-05 |
 
 ---
 
@@ -36,17 +36,25 @@
 
 | 时间 | 操作 | 状态 |
 |------|------|------|
-| 2026-03-05 03:35 | 需求录入并同步到仓库 | done |
-| 2026-03-05 03:40 | 阅读 engine.ts 分析 COLOR_MAP 和 optimizeShiftPlan 逻辑 | done |
-| 2026-03-05 03:42 | 发现问题：optimizeShiftPlan 使用硬编码排产模式，未参考 COLOR_MAP | done |
-| 2026-03-05 03:45 | 重写 optimizeShiftPlan 为颜色感知版本，新增 period 参数 | done |
-| 2026-03-05 03:45 | 新增辅助函数：getYellowCells, getOrangeCells, evaluatePlan, _solveShiftGroup, _solveOt2Multi | done |
-| 2026-03-05 03:45 | 保留 _optimizeShiftPlanGeneric 用于无颜色标记的 P6-P9 | done |
-| 2026-03-05 03:46 | 更新所有调用点：optimizeAllPeriods, applyOptimalSingle, previewP4Linkage | done |
-| 2026-03-05 03:46 | Vite 生产构建成功（7.01s） | done |
-| 2026-03-05 03:46 | 提交到 main 分支（commit: ff03a99d） | done |
-| 2026-03-05 03:47 | 部署到 gh-pages 分支（commit: 99351493） | done |
-| 2026-03-05 03:48 | GitHub Pages 在线验证通过 | done |
+| 2026-03-05 03:35 | F001 需求录入并同步到仓库 | done |
+| 2026-03-05 03:40 | F001 阅读 engine.ts 分析 COLOR_MAP 和 optimizeShiftPlan 逻辑 | done |
+| 2026-03-05 03:42 | F001 发现问题：optimizeShiftPlan 使用硬编码排产模式，未参考 COLOR_MAP | done |
+| 2026-03-05 03:45 | F001 重写 optimizeShiftPlan 为颜色感知版本 | done |
+| 2026-03-05 03:46 | F001 构建成功、提交到 main 分支 | done |
+| 2026-03-05 03:47 | F001 部署到 gh-pages 分支 | done |
+| 2026-03-05 03:48 | F001 GitHub Pages 在线验证通过 | done |
+| 2026-03-05 07:00 | F002 需求录入并同步到仓库 | done |
+| 2026-03-05 07:05 | F002 分析超限根因：Math.round + -0.5容差 | done |
+| 2026-03-05 07:10 | F002 第一次修复：Math.floor + 约束验证函数 | done |
+| 2026-03-05 07:15 | F002 发现 _enforceConstraints c3 公式 BUG（缺少 *2） | done |
+| 2026-03-05 07:20 | F002 重写 _enforceConstraints 为迭代式验证 | done |
+| 2026-03-05 07:25 | F002 发现根本问题：_solveShiftGroup 不考虑全局约束 | done |
+| 2026-03-05 07:30 | F002 彻底重写 optimizeShiftPlan 颜色感知版本 | done |
+| 2026-03-05 07:32 | F002 新增 _solveShiftGroupSafe、_solveShiftGroupDual、_solveOt2MultiSafe | done |
+| 2026-03-05 07:33 | F002 多比例搜索策略（15个shift1资源比例） | done |
+| 2026-03-05 07:35 | F002 构建成功（JS hash 变更确认代码更新） | done |
+| 2026-03-05 07:36 | F002 提交到 main 分支并部署到 gh-pages | done |
+| 2026-03-05 07:38 | F002 GitHub Pages 在线验证：所有9期所有约束全部 >= 0 | done |
 
 ---
 
@@ -56,16 +64,8 @@
 
 | 文件 | 变更类型 | 说明 |
 |------|----------|------|
-| `client/src/lib/engine.ts` | 重写+新增 | 重写 `optimizeShiftPlan` 为颜色感知版本，新增 `period` 参数；新增辅助函数 `getYellowCells`、`getOrangeCells`、`evaluatePlan`、`_solveShiftGroup`、`_solveOt2Multi`；保留 `_optimizeShiftPlanGeneric` 用于 P6-P9 |
+| `client/src/lib/engine.ts` | 重写+新增 | 重写 `optimizeShiftPlan` 为颜色感知版本，新增 `period` 参数；新增辅助函数 |
 | `client/src/components/SimulatorTab.tsx` | 修改 | 更新 `applyOptimalSingle` 调用传递 `periodIdx + 1` 参数 |
-
-**核心算法变更**：
-
-旧算法使用硬编码的固定排产模式（第一班C+D、第二班B、一加A、二加D+B），不考虑每期不同的颜色标记。新算法根据每期 `COLOR_MAP` 中的黄色格子分布动态决定哪些格子可以填值，按班次顺序逐步求解，确保只在黄色格中分配产量，灰色格保持为0。
-
-**验证结果**：
-
-P1 期验证显示所有6个黄色格（shift1_C, shift1_D, ot1_A, shift2_B, ot2_B, ot2_D）均获得产量分配，所有10个灰色格均保持为0。P6-P9 无颜色标记的期数使用通用启发式算法，产量正常。
 
 ---
 
@@ -73,19 +73,40 @@ P1 期验证显示所有6个黄色格（shift1_C, shift1_D, ot1_A, shift2_B, ot2
 
 **需求来源**：用户直接指令
 
-**问题描述**：当前最优排产求解算法在某些情况下会产生约束超限（负值），例如 P1 的“一班后可用人数”为 -0.077、“一加后可用机器”为 -0.173。需要优化算法，严格保证所有6个约束检查点均 >= 0。
-
-**6个约束检查点**：
-
-1. 一班后可用人数 = totalAvailableWorkers - shift1Labor - shift2Labor >= 0
-2. 一班后可用机器 = machines - shift1MachineUsed >= 0
-3. 一加后可用人数 = shift1LaborUsed - ot1LaborUsed >= 0
-4. 二班后可用机器 = machines - shift2MachineUsed - ot1MachineUsed >= 0
-5. 二加后可用人数 = shift2LaborUsed - ot2LaborUsed >= 0
-6. 二加后可用机器 = machines - ot2MachineUsed >= 0
+**问题描述**：当前最优排产求解算法在某些情况下会产生约束超限（负值），例如 P1 的"一班后可用人数"为 -0.077、P3 的"二班后可用机器"为 -128.615。需要优化算法，严格保证所有6个约束检查点均 >= 0。
 
 **验收标准**：
 
 - 所有期数的所有6个约束检查点均 >= 0
-- 不得出现任何红色“超限”标记
+- 不得出现任何红色"超限"标记
 - 在不超限的前提下，尽量使约束残差接近0（最大化产能利用率）
+
+---
+
+## F002 技术变更摘要
+
+**修改文件**：
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `client/src/lib/engine.ts` | 重写 | 彻底重写 `optimizeShiftPlan` 颜色感知版本的求解算法 |
+
+**核心算法变更**：
+
+旧算法的 `_solveShiftGroup` 独立计算每个产品的最大值然后均分，不考虑多产品同时分配时的总资源消耗。新算法采用**全局约束感知**策略：
+
+1. **_solveShiftGroupSafe**: 安全的班次产品分配，每步检查全局约束
+2. **_solveShiftGroupDual**: 双约束（人力+机器）班次分配
+3. **_solveOt2MultiSafe**: 安全的二加多产品求解
+4. **多比例搜索**: 遍历15个 shift1 资源比例（0.3-1.0），为每个比例生成完整方案
+5. **evaluatePlan**: 评估方案质量，超限方案被大幅惩罚（+10000/约束）
+6. **_enforceConstraints**: 迭代式最终安全网，循环修正直到所有约束满足
+
+**验证结果**：
+
+| 期 | 一班后人数 | 一班后机器 | 一加后人数 | 二班后机器 | 二加后人数 | 二加后机器 | 总产量 |
+|---|---------|---------|---------|---------|---------|---------|------|
+| P1 | 0.115 | 0.000 | 12.808 | 0.115 | 0.077 | 68.692 | 819 |
+| P3 | 63.462 | 0.058 | 104.904 | 0.000 | 0.154 | 0.154 | 1259 |
+
+所有9期的所有约束全部 >= 0，无任何超限。P3 产量从之前超限的 1264 调整为合规的 1259。

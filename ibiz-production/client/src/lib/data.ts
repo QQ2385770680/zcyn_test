@@ -12,12 +12,31 @@ export interface ProductSpec {
   laborPerUnit: number;
 }
 
-export const products: Record<string, ProductSpec> = {
-  A: { name: 'A', machineHours: 110, laborHours: 80, materials: 500, machinePerUnit: 0.2115, laborPerUnit: 0.1538 },
-  B: { name: 'B', machineHours: 150, laborHours: 100, materials: 800, machinePerUnit: 0.2885, laborPerUnit: 0.1923 },
-  C: { name: 'C', machineHours: 180, laborHours: 110, materials: 1600, machinePerUnit: 0.3462, laborPerUnit: 0.2115 },
-  D: { name: 'D', machineHours: 280, laborHours: 140, materials: 2500, machinePerUnit: 0.5385, laborPerUnit: 0.2692 },
+// 默认产品参数（可被用户修改）
+export const DEFAULT_PRODUCT_SPECS: Record<string, { machineHours: number; laborHours: number; materials: number }> = {
+  A: { machineHours: 110, laborHours: 80, materials: 500 },
+  B: { machineHours: 150, laborHours: 100, materials: 800 },
+  C: { machineHours: 180, laborHours: 110, materials: 1600 },
+  D: { machineHours: 280, laborHours: 140, materials: 2500 },
 };
+
+// 根据输入参数计算完整的ProductSpec（含派生字段）
+export function buildProductSpecs(input: Record<string, { machineHours: number; laborHours: number; materials: number }>): Record<string, ProductSpec> {
+  const result: Record<string, ProductSpec> = {};
+  for (const [key, spec] of Object.entries(input)) {
+    result[key] = {
+      name: key,
+      machineHours: spec.machineHours,
+      laborHours: spec.laborHours,
+      materials: spec.materials,
+      machinePerUnit: spec.machineHours / WORK_HOURS,
+      laborPerUnit: spec.laborHours / WORK_HOURS,
+    };
+  }
+  return result;
+}
+
+export const products: Record<string, ProductSpec> = buildProductSpecs(DEFAULT_PRODUCT_SPECS);
 
 export const productRatio = { A: 9, B: 6, C: 4, D: 3 };
 export const totalRatio = 22;

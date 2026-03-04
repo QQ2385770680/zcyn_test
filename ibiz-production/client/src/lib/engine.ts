@@ -140,6 +140,12 @@ export interface PeriodResult {
   availMachines_afterShift2: ConstraintStatus; // 二班后（含一加）
   availMachines_afterOT2: ConstraintStatus;    // 二加后
 
+  // 二加资源上限（用于显示二加可用的最大资源）
+  ot2_maxWorkers: number;   // 二加可用人数上限 = 二正消耗人力 / 2（因为加班×2）
+  ot2_maxMachines: number;  // 二加可用机器上限 = 本期机器 / 2（因为加班×2）
+  ot2_usedWorkers: number;  // 二加已用人数
+  ot2_usedMachines: number; // 二加已用机器
+
   // 按比例计算的产能（保留旧功能）
   singleShiftGroups: number;
   singleShiftBottleneck: string;
@@ -410,6 +416,12 @@ export function calculateProduction(params: SimulatorParams): SimulatorResult {
       availMachines_afterOT2: getConstraintStatus(
         parseFloat(availMachinesAfterOT2.toFixed(3)), machines
       ),
+
+      // 二加资源上限和已用资源
+      ot2_maxWorkers: parseFloat((shift2LaborUsed / 2).toFixed(3)),  // 二正消耗人力/2 = 二加可用人数上限
+      ot2_maxMachines: parseFloat((machines / 2).toFixed(3)),         // 本期机器/2 = 二加可用机器上限
+      ot2_usedWorkers: parseFloat((ot2LaborUsed / 2).toFixed(3)),    // 二加已用人数（原始值，未×2）
+      ot2_usedMachines: parseFloat((ot2MachineUsed / 2).toFixed(3)), // 二加已用机器（原始值，未×2）
 
       singleShiftGroups: parseFloat(s1Groups.toFixed(2)),
       singleShiftBottleneck,

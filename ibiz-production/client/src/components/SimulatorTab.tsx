@@ -529,19 +529,27 @@ export default function SimulatorTab() {
                   </div>
                   <div className="flex items-center gap-3">
                     {hasProduction && (
-                      <div className="flex items-center gap-1.5">
-                        {/* 约束状态指示器 */}
-                        <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs ${constraintColor(pr.availMachines_afterShift1)}`}>
-                          {constraintIcon(pr.availMachines_afterShift1)}
-                          <span>一班机</span>
-                        </div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* 6个约束状态指示器 — 严格对应 Excel rule.xls 中的6个检查点 */}
                         <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs ${constraintColor(pr.availWorkers_afterShift1)}`}>
                           {constraintIcon(pr.availWorkers_afterShift1)}
                           <span>一班人</span>
                         </div>
+                        <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs ${constraintColor(pr.availMachines_afterShift1)}`}>
+                          {constraintIcon(pr.availMachines_afterShift1)}
+                          <span>一班机</span>
+                        </div>
+                        <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs ${constraintColor(pr.availWorkers_afterOT1)}`}>
+                          {constraintIcon(pr.availWorkers_afterOT1)}
+                          <span>一加人</span>
+                        </div>
                         <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs ${constraintColor(pr.availMachines_afterShift2)}`}>
                           {constraintIcon(pr.availMachines_afterShift2)}
                           <span>二班机</span>
+                        </div>
+                        <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs ${constraintColor(pr.availWorkers_afterOT2)}`}>
+                          {constraintIcon(pr.availWorkers_afterOT2)}
+                          <span>二加人</span>
                         </div>
                         <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs ${constraintColor(pr.availMachines_afterOT2)}`}>
                           {constraintIcon(pr.availMachines_afterOT2)}
@@ -677,22 +685,31 @@ export default function SimulatorTab() {
                                 const plan = config.shiftPlan[shift];
                                 const shiftTotal = PRODUCT_KEYS.reduce((s, p) => s + (plan[p] || 0), 0);
 
-                                // 约束状态
+                                // 约束状态 — 严格对应 Excel rule.xls 中的6个检查点
+                                // Excel 中：可用人数-第二班=暗色(禁区)，可用机器-一加=暗色(禁区)
                                 let workerConstraint: ConstraintStatus | null = null;
                                 let machineConstraint: ConstraintStatus | null = null;
+                                let workerLabel = '';
+                                let machineLabel = '';
 
                                 if (shift === 'shift1') {
                                   workerConstraint = pr.availWorkers_afterShift1;
                                   machineConstraint = pr.availMachines_afterShift1;
+                                  workerLabel = '一班后';
+                                  machineLabel = '一班后';
                                 } else if (shift === 'ot1') {
                                   workerConstraint = pr.availWorkers_afterOT1;
                                   machineConstraint = pr.availMachines_afterShift2;
+                                  workerLabel = '一加后';
+                                  machineLabel = '二班后';
                                 } else if (shift === 'shift2') {
-                                  workerConstraint = null; // 二正的人力约束在一班后已计算
-                                  machineConstraint = null;
+                                  workerConstraint = null; // Excel 中可用人数-第二班=暗色(禁区)
+                                  machineConstraint = null; // Excel 中可用机器-一加=暗色(禁区)
                                 } else if (shift === 'ot2') {
                                   workerConstraint = pr.availWorkers_afterOT2;
                                   machineConstraint = pr.availMachines_afterOT2;
+                                  workerLabel = '二加后';
+                                  machineLabel = '二加后';
                                 }
 
                                 const isOT = shift === 'ot1' || shift === 'ot2';
@@ -747,24 +764,46 @@ export default function SimulatorTab() {
                                     </td>
                                     <td className="px-2 py-2">
                                       {workerConstraint && (
-                                        <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(workerConstraint)}`}>
-                                          {constraintIcon(workerConstraint)}
-                                          <span>{workerConstraint.value.toFixed(3)}</span>
+                                        <div className={`flex flex-col items-center gap-0.5`}>
+                                          <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(workerConstraint)}`}>
+                                            {constraintIcon(workerConstraint)}
+                                            <span>{workerConstraint.value.toFixed(3)}</span>
+                                          </div>
+                                          <span className="text-[9px] text-gray-400">{workerLabel}</span>
+                                          {shift === 'ot2' && (
+                                            <div className="text-[9px] text-violet-500 font-mono" title="二加可用人数上限=二正消耗人力÷2">
+                                              上限:{pr.ot2_maxWorkers.toFixed(1)} 已用:{pr.ot2_usedWorkers.toFixed(1)}
+                                            </div>
+                                          )}
                                         </div>
                                       )}
                                       {shift === 'shift2' && (
-                                        <div className="text-xs text-gray-400 text-center">见一班后</div>
+                                        <div className="flex flex-col items-center gap-0.5">
+                                          <div className="w-full px-2 py-1 rounded-md text-xs text-center bg-gray-100 text-gray-400 border border-dashed border-gray-300">禁区</div>
+                                          <span className="text-[9px] text-gray-400">Excel暗色</span>
+                                        </div>
                                       )}
                                     </td>
                                     <td className="px-2 py-2">
                                       {machineConstraint && (
-                                        <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(machineConstraint)}`}>
-                                          {constraintIcon(machineConstraint)}
-                                          <span>{machineConstraint.value.toFixed(3)}</span>
+                                        <div className={`flex flex-col items-center gap-0.5`}>
+                                          <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(machineConstraint)}`}>
+                                            {constraintIcon(machineConstraint)}
+                                            <span>{machineConstraint.value.toFixed(3)}</span>
+                                          </div>
+                                          <span className="text-[9px] text-gray-400">{machineLabel}</span>
+                                          {shift === 'ot2' && (
+                                            <div className="text-[9px] text-violet-500 font-mono" title="二加可用机器上限=本期机器÷2">
+                                              上限:{pr.ot2_maxMachines.toFixed(1)} 已用:{pr.ot2_usedMachines.toFixed(1)}
+                                            </div>
+                                          )}
                                         </div>
                                       )}
                                       {shift === 'shift2' && (
-                                        <div className="text-xs text-gray-400 text-center">见一加后</div>
+                                        <div className="flex flex-col items-center gap-0.5">
+                                          <div className="w-full px-2 py-1 rounded-md text-xs text-center bg-gray-100 text-gray-400 border border-dashed border-gray-300">禁区</div>
+                                          <span className="text-[9px] text-gray-400">Excel暗色</span>
+                                        </div>
                                       )}
                                     </td>
                                   </tr>
@@ -814,12 +853,12 @@ export default function SimulatorTab() {
                           />
                           <ConstraintCard
                             label="二加后 可用人数"
-                            desc="二正消耗人力 - 二加消耗×2"
+                            desc={`二正消耗人力 - 二加消耗×2 | 上限:${pr.ot2_maxWorkers.toFixed(1)} 已用:${pr.ot2_usedWorkers.toFixed(1)}`}
                             constraint={pr.availWorkers_afterOT2}
                           />
                           <ConstraintCard
                             label="二加后 可用机器"
-                            desc="本期机器 - 二加消耗×2"
+                            desc={`本期机器 - 二加消耗×2 | 上限:${pr.ot2_maxMachines.toFixed(1)} 已用:${pr.ot2_usedMachines.toFixed(1)}`}
                             constraint={pr.availMachines_afterOT2}
                           />
                         </div>

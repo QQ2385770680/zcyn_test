@@ -139,7 +139,7 @@ export default function SimulatorTab() {
       const tempResult = calculateProduction(prev);
       const pr = tempResult.periods[periodIdx];
       if (!pr) return prev;
-      const plan = optimizeShiftPlan(pr.machines, pr.totalAvailableWorkers);
+      const plan = optimizeShiftPlan(pr.machines, pr.totalAvailableWorkers, periodIdx + 1);
       const configs = [...prev.periodConfigs];
       configs[periodIdx] = { ...configs[periodIdx], shiftPlan: plan };
       return { ...prev, periodConfigs: configs };

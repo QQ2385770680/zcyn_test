@@ -455,50 +455,334 @@ const LABOR_PER = {
 } as const;
 
 /**
- * 最优排产推荐算法
- * 
- * 排产模式（基于用户提供的规则）：
- * - 第一班：C + D 产品 → 目标：一班可用机器接近0
- * - 第二班：B 产品   → 目标：一班可用人数接近0
- * - 一加班：A 产品   → 目标：二班可用机器接近0
- * - 二加班：D + B    → 目标：二加可用机器最小 & 二加可用人数接近0
- * 
- * 求解顺序：
- * 1. 先确定第一班C和D（使一班可用机器接近0）
- * 2. 再确定第二班B（使一班可用人数接近0）
- * 3. 再确定一加A（使二班可用机器接近0）
- * 4. 最后确定二加D和B（使二加可用人数接近0，同时二加可用机器尽量小）
+ * 获取某期所有黄色（必填）格子的列表
+ */
+function getYellowCells(period: number): Array<{ shift: ShiftName; product: ProductKey }> {
+  const cells: Array<{ shift: ShiftName; product: ProductKey }> = [];
+  for (const shift of SHIFT_NAMES) {
+    for (const product of PRODUCT_KEYS) {
+      if (getCellColor(period, shift, product) === 'yellow') {
+        cells.push({ shift, product });
+      }
+    }
+  }
+  return cells;
+}
+
+/**
+ * 获取某期所有橙色（选填）格子的列表
+ */
+function getOrangeCells(period: number): Array<{ shift: ShiftName; product: ProductKey }> {
+  const cells: Array<{ shift: ShiftName; product: ProductKey }> = [];
+  for (const shift of SHIFT_NAMES) {
+    for (const product of PRODUCT_KEYS) {
+      if (getCellColor(period, shift, product) === 'orange') {
+        cells.push({ shift, product });
+      }
+    }
+  }
+  return cells;
+}
+
+/**
+ * 计算一个排产方案的6个约束残差绝对值之和（越小越好）
+ * 同时检查是否有超限（负值），超限的方案会被大幅惩罚
+ */
+function evaluatePlan(
+  plan: PeriodShiftPlan,
+  machines: number,
+  totalAvailableWorkers: number,
+): number {
+  const shift1LaborUsed = PRODUCT_KEYS.reduce(
+    (s, p) => s + (plan.shift1[p] || 0) * LABOR_PER[p], 0
+  );
+  const shift2LaborUsed = PRODUCT_KEYS.reduce(
+    (s, p) => s + (plan.shift2[p] || 0) * LABOR_PER[p], 0
+  );
+  const ot1LaborUsed = PRODUCT_KEYS.reduce(
+    (s, p) => s + (plan.ot1[p] || 0) * LABOR_PER[p] * 2, 0
+  );
+  const ot2LaborUsed = PRODUCT_KEYS.reduce(
+    (s, p) => s + (plan.ot2[p] || 0) * LABOR_PER[p] * 2, 0
+  );
+  const shift1MachineUsed = PRODUCT_KEYS.reduce(
+    (s, p) => s + (plan.shift1[p] || 0) * MACHINE_PER[p], 0
+  );
+  const shift2MachineUsed = PRODUCT_KEYS.reduce(
+    (s, p) => s + (plan.shift2[p] || 0) * MACHINE_PER[p], 0
+  );
+  const ot1MachineUsed = PRODUCT_KEYS.reduce(
+    (s, p) => s + (plan.ot1[p] || 0) * MACHINE_PER[p] * 2, 0
+  );
+  const ot2MachineUsed = PRODUCT_KEYS.reduce(
+    (s, p) => s + (plan.ot2[p] || 0) * MACHINE_PER[p] * 2, 0
+  );
+
+  // 6个约束检查点
+  const c1 = totalAvailableWorkers - shift1LaborUsed - shift2LaborUsed; // 一班后可用人数
+  const c2 = machines - shift1MachineUsed;                               // 一班后可用机器
+  const c3 = shift1LaborUsed - ot1LaborUsed;                             // 一加后可用人数
+  const c4 = machines - shift2MachineUsed - ot1MachineUsed;              // 二班后可用机器
+  const c5 = shift2LaborUsed - ot2LaborUsed;                             // 二加后可用人数
+  const c6 = machines - ot2MachineUsed;                                  // 二加后可用机器
+
+  let score = 0;
+  for (const c of [c1, c2, c3, c4, c5, c6]) {
+    if (c < -0.5) {
+      score += Math.abs(c) * 100; // 超限大幅惩罚
+    } else {
+      score += Math.abs(c);
+    }
+  }
+  return score;
+}
+
+/**
+ * 最优排产推荐算法（颜色感知版）
+ *
+ * 根据每期 COLOR_MAP 中的颜色标记决定哪些格子可以填值：
+ * - 黄色（必填）格子：优先分配产量
+ * - 橙色（选填）格子：在黄色格填完后考虑
+ * - 灰色/none 格子：不填，保持为0
+ *
+ * 对于有颜色标记的期数（P1-P5），严格按颜色优先级排产。
+ * 对于无颜色标记的期数（P6-P9），使用通用启发式算法。
+ *
+ * @param machines 本期可用机器数
+ * @param totalAvailableWorkers 本期可用人数
+ * @param period 期数（1-based），用于查询 COLOR_MAP
  */
 export function optimizeShiftPlan(
+  machines: number,
+  totalAvailableWorkers: number,
+  period: number = 0,
+): PeriodShiftPlan {
+  const plan = emptyPeriodShiftPlan();
+
+  // 获取该期的黄色和橙色格子
+  const yellowCells = period > 0 ? getYellowCells(period) : [];
+  const orangeCells = period > 0 ? getOrangeCells(period) : [];
+
+  // 如果该期没有颜色标记（P6-P9或period=0），使用通用启发式算法
+  if (yellowCells.length === 0 && orangeCells.length === 0) {
+    return _optimizeShiftPlanGeneric(machines, totalAvailableWorkers);
+  }
+
+  // ============================================================
+  // 颜色感知求解：只在黄色格子中分配产量
+  // 使用约束优化搜索：遍历可行解空间，找到使6个约束残差之和最小的方案
+  // ============================================================
+
+  // 将黄色格子按班次分组
+  const yellowByShift: Record<ShiftName, ProductKey[]> = {
+    shift1: [], ot1: [], shift2: [], ot2: [],
+  };
+  for (const { shift, product } of yellowCells) {
+    yellowByShift[shift].push(product);
+  }
+
+  // 计算每个黄色格子的产量上限（基于机器和人力约束的粗估）
+  // 单个产品的最大产量不超过 min(机器上限, 人力上限)
+  const maxPerCell: Record<string, number> = {};
+  for (const { shift, product } of yellowCells) {
+    const isOT = shift === 'ot1' || shift === 'ot2';
+    const machineMax = Math.floor(machines / (MACHINE_PER[product] * (isOT ? 2 : 1)));
+    const laborMax = Math.floor(totalAvailableWorkers / (LABOR_PER[product] * (isOT ? 2 : 1)));
+    maxPerCell[`${shift}_${product}`] = Math.min(machineMax, laborMax, 600);
+  }
+
+  // 策略：按班次顺序逐步求解，每步利用约束方程求解析解
+  // 这比暴力搜索高效得多
+
+  // === Step 1: 第一班（shift1）黄色格子 → 目标：一班后可用机器接近0 ===
+  const s1Products = yellowByShift.shift1;
+  if (s1Products.length > 0) {
+    _solveShiftGroup(plan, 'shift1', s1Products, machines, MACHINE_PER, 1, maxPerCell);
+  }
+
+  // === Step 2: 第二班（shift2）黄色格子 → 目标：一班后可用人数接近0 ===
+  const s2Products = yellowByShift.shift2;
+  if (s2Products.length > 0) {
+    // 一班后可用人数 = totalAvailableWorkers - shift1Labor - shift2Labor ≈ 0
+    const shift1Labor = PRODUCT_KEYS.reduce(
+      (s, p) => s + (plan.shift1[p] || 0) * LABOR_PER[p], 0
+    );
+    const remainingLabor = totalAvailableWorkers - shift1Labor;
+    _solveShiftGroup(plan, 'shift2', s2Products, remainingLabor, LABOR_PER, 1, maxPerCell);
+  }
+
+  // === Step 3: 一加（ot1）黄色格子 → 目标：二班后可用机器接近0 ===
+  const ot1Products = yellowByShift.ot1;
+  if (ot1Products.length > 0) {
+    // 二班后可用机器 = machines - shift2MachineUsed - ot1MachineUsed*2 ≈ 0
+    const shift2MachineUsed = PRODUCT_KEYS.reduce(
+      (s, p) => s + (plan.shift2[p] || 0) * MACHINE_PER[p], 0
+    );
+    const remainingMachine = machines - shift2MachineUsed;
+    _solveShiftGroup(plan, 'ot1', ot1Products, remainingMachine, MACHINE_PER, 2, maxPerCell);
+  }
+
+  // === Step 4: 二加（ot2）黄色格子 → 目标：二加后可用人数接近0 & 二加后可用机器尽量小 ===
+  const ot2Products = yellowByShift.ot2;
+  if (ot2Products.length > 0) {
+    // 二加后可用人数 = shift2Labor - ot2LaborUsed*2 ≈ 0
+    const shift2Labor = PRODUCT_KEYS.reduce(
+      (s, p) => s + (plan.shift2[p] || 0) * LABOR_PER[p], 0
+    );
+    if (ot2Products.length === 1) {
+      // 单产品：直接求解
+      const p = ot2Products[0];
+      const exact = shift2Labor / (LABOR_PER[p] * 2);
+      const maxVal = maxPerCell[`ot2_${p}`] || 0;
+      plan.ot2[p] = Math.max(0, Math.min(Math.round(exact), maxVal));
+    } else {
+      // 多产品：搜索最优组合（类似原算法的二加求解）
+      _solveOt2Multi(plan, ot2Products, shift2Labor, machines, maxPerCell);
+    }
+  }
+
+  return plan;
+}
+
+/**
+ * 求解某个班次的产品分配
+ * 目标：使 resource - sum(product[i] * costPer[product[i]] * multiplier) ≈ 0
+ */
+function _solveShiftGroup(
+  plan: PeriodShiftPlan,
+  shift: ShiftName,
+  products: ProductKey[],
+  resource: number,
+  costPer: Record<ProductKey, number>,
+  multiplier: number,
+  maxPerCell: Record<string, number>,
+): void {
+  if (products.length === 0) return;
+
+  if (products.length === 1) {
+    // 单产品：直接求解
+    const p = products[0];
+    const exact = resource / (costPer[p] * multiplier);
+    const maxVal = maxPerCell[`${shift}_${p}`] || 0;
+    plan[shift][p] = Math.max(0, Math.min(Math.round(exact), maxVal));
+    return;
+  }
+
+  if (products.length === 2) {
+    // 双产品：遍历搜索
+    const [p1, p2] = products;
+    const max1 = maxPerCell[`${shift}_${p1}`] || 0;
+    const max2 = maxPerCell[`${shift}_${p2}`] || 0;
+    let bestScore = Infinity;
+    let bestV1 = 0, bestV2 = 0;
+
+    // 遍历p1，求p2使约束接近0
+    const step = Math.max(1, Math.floor(max1 / 300));
+    for (let v1 = 0; v1 <= max1; v1 += step) {
+      const remaining = resource - v1 * costPer[p1] * multiplier;
+      const v2Exact = remaining / (costPer[p2] * multiplier);
+      for (const v2 of [Math.floor(v2Exact), Math.ceil(v2Exact)]) {
+        if (v2 < 0 || v2 > max2) continue;
+        const residual = resource - (v1 * costPer[p1] + v2 * costPer[p2]) * multiplier;
+        if (residual < -0.5) continue;
+        const score = Math.abs(residual);
+        if (score < bestScore) {
+          bestScore = score;
+          bestV1 = v1;
+          bestV2 = v2;
+        }
+      }
+    }
+    plan[shift][p1] = bestV1;
+    plan[shift][p2] = bestV2;
+    return;
+  }
+
+  // 3+产品：贪心分配（按单位消耗从大到小排序，依次分配）
+  const sorted = [...products].sort((a, b) => costPer[b] - costPer[a]);
+  let remaining = resource;
+  for (let i = 0; i < sorted.length; i++) {
+    const p = sorted[i];
+    const maxVal = maxPerCell[`${shift}_${p}`] || 0;
+    if (i === sorted.length - 1) {
+      // 最后一个产品：用完剩余资源
+      const exact = remaining / (costPer[p] * multiplier);
+      plan[shift][p] = Math.max(0, Math.min(Math.round(exact), maxVal));
+    } else {
+      // 分配合理份额
+      const share = remaining / (sorted.length - i);
+      const exact = share / (costPer[p] * multiplier);
+      const val = Math.max(0, Math.min(Math.round(exact), maxVal));
+      plan[shift][p] = val;
+      remaining -= val * costPer[p] * multiplier;
+    }
+  }
+}
+
+/**
+ * 求解二加班多产品组合
+ * 目标：二加后可用人数接近0 & 二加后可用机器尽量小
+ */
+function _solveOt2Multi(
+  plan: PeriodShiftPlan,
+  products: ProductKey[],
+  shift2Labor: number,
+  machines: number,
+  maxPerCell: Record<string, number>,
+): void {
+  if (products.length === 2) {
+    const [p1, p2] = products;
+    const max1 = maxPerCell[`ot2_${p1}`] || 0;
+    let bestScore = Infinity;
+    let bestV1 = 0, bestV2 = 0;
+
+    const step = Math.max(1, Math.floor(max1 / 300));
+    for (let v1 = 0; v1 <= max1; v1 += step) {
+      const v2Exact = (shift2Labor / 2 - v1 * LABOR_PER[p1]) / LABOR_PER[p2];
+      for (const v2 of [Math.floor(v2Exact), Math.ceil(v2Exact)]) {
+        const max2 = maxPerCell[`ot2_${p2}`] || 0;
+        if (v2 < 0 || v2 > max2) continue;
+        const laborRemain = shift2Labor - (v1 * LABOR_PER[p1] + v2 * LABOR_PER[p2]) * 2;
+        if (laborRemain < -0.5) continue;
+        const machineRemain = machines - (v1 * MACHINE_PER[p1] + v2 * MACHINE_PER[p2]) * 2;
+        if (machineRemain < -0.5) continue;
+        const laborPenalty = laborRemain < 0 ? Math.abs(laborRemain) * 10 : Math.abs(laborRemain);
+        const score = laborPenalty * 3 + Math.max(0, machineRemain);
+        if (score < bestScore) {
+          bestScore = score;
+          bestV1 = v1;
+          bestV2 = v2;
+        }
+      }
+    }
+    plan.ot2[p1] = bestV1;
+    plan.ot2[p2] = bestV2;
+  } else {
+    // 单产品或3+产品
+    _solveShiftGroup(plan, 'ot2', products, shift2Labor, LABOR_PER, 2, maxPerCell);
+  }
+}
+
+/**
+ * 通用启发式最优排产（用于无颜色标记的期数 P6-P9）
+ * 保留原有的固定排产模式
+ */
+function _optimizeShiftPlanGeneric(
   machines: number,
   totalAvailableWorkers: number,
 ): PeriodShiftPlan {
   const plan = emptyPeriodShiftPlan();
 
-  // ============================================================
   // Step 1: 第一班 C + D → 一班可用机器接近0
-  // 约束: machines - C * MACHINE_PER.C - D * MACHINE_PER.D ≈ 0
-  // 策略: 在C和D的合理范围内搜索最优组合
-  // C范围[100,250], D范围[100,250]
-  // ============================================================
-  
   let bestShift1Score = Infinity;
   let bestC = 100, bestD = 100;
   
   for (let d = 100; d <= 250; d += 1) {
-    // 给定D，求C使一班可用机器接近0
-    // machines - C * MACHINE_PER.C - D * MACHINE_PER.D = 0
-    // C = (machines - D * MACHINE_PER.D) / MACHINE_PER.C
     const cExact = (machines - d * MACHINE_PER.D) / MACHINE_PER.C;
     const cRounded = Math.round(cExact);
-    
-    // C必须在[100, 250]范围内
     if (cRounded < 100 || cRounded > 250) continue;
-    
     const remaining = machines - cRounded * MACHINE_PER.C - d * MACHINE_PER.D;
-    // 不能为负
     if (remaining < -0.5) continue;
-    
     const score = Math.abs(remaining);
     if (score < bestShift1Score) {
       bestShift1Score = score;
@@ -506,97 +790,45 @@ export function optimizeShiftPlan(
       bestD = d;
     }
   }
-  
   plan.shift1.C = bestC;
   plan.shift1.D = bestD;
-  
-  // ============================================================
+
   // Step 2: 第二班 B → 一班可用人数接近0
-  // 约束: totalAvailableWorkers - shift1Labor - shift2Labor ≈ 0
-  // shift1Labor = C * LABOR_PER.C + D * LABOR_PER.D
-  // shift2Labor = B * LABOR_PER.B
-  // B = (totalAvailableWorkers - shift1Labor) / LABOR_PER.B
-  // ============================================================
-  
   const shift1Labor = bestC * LABOR_PER.C + bestD * LABOR_PER.D;
   const bExact = (totalAvailableWorkers - shift1Labor) / LABOR_PER.B;
-  
-  // B还受机器约束限制：二班后可用机器 = machines - B*MACHINE_PER.B - A_ot1*MACHINE_PER.A*2 >= 0
-  // 但此时A_ot1还未确定，先用机器上限粗估：B <= machines / MACHINE_PER.B
-  // 更精确：一加A的机器消耗也占用机器，所以B的机器上限约为 machines / MACHINE_PER.B
-  // 但实际上二班可用机器 = machines - B*MACHINE_PER.B - A*MACHINE_PER.A*2
-  // 为避免B过大导致一加A无法分配，限制B使得至少留出一些机器给一加
-  // 保守估计：B的机器消耗不超过机器总量的60%（留40%给一加A）
   const bMachineLimit = Math.floor(machines * 0.6 / MACHINE_PER.B);
   let bestB = Math.max(0, Math.min(Math.round(bExact), bMachineLimit));
-  
-  // 验证不会使可用人数为负
   const availWorkersCheck = totalAvailableWorkers - shift1Labor - bestB * LABOR_PER.B;
   if (availWorkersCheck < -0.5) {
     bestB = Math.max(0, Math.floor(bExact));
     bestB = Math.min(bestB, bMachineLimit);
   }
-  
   plan.shift2.B = bestB;
-  
-  // ============================================================
+
   // Step 3: 一加 A → 二班可用机器接近0
-  // 约束: machines - B * MACHINE_PER.B - A * MACHINE_PER.A * 2 ≈ 0
-  // A = (machines - B * MACHINE_PER.B) / (MACHINE_PER.A * 2)
-  // ============================================================
-  
   const aExact = (machines - bestB * MACHINE_PER.B) / (MACHINE_PER.A * 2);
   let bestA = Math.max(0, Math.round(aExact));
-  
-  // 验证不会使可用机器为负
   const availMachinesCheck = machines - bestB * MACHINE_PER.B - bestA * MACHINE_PER.A * 2;
   if (availMachinesCheck < -0.5) {
     bestA = Math.max(0, Math.floor(aExact));
   }
-  
   plan.ot1.A = bestA;
-  
-  // ============================================================
+
   // Step 4: 二加 D + B → 二加可用人数接近0 & 二加可用机器尽量小
-  // 
-  // 约束1 (二加可用人数): shift2Labor - (D2 * LABOR_PER.D + B2 * LABOR_PER.B) * 2 ≈ 0
-  //   shift2Labor = bestB * LABOR_PER.B
-  //   D2 * LABOR_PER.D * 2 + B2 * LABOR_PER.B * 2 = bestB * LABOR_PER.B
-  //
-  // 约束2 (二加可用机器): machines - (D2 * MACHINE_PER.D + B2 * MACHINE_PER.B) * 2 → 最小但≥0
-  //
-  // 策略: D2从40开始，优先满足约束1求B2，然后检查约束2
-  // ============================================================
-  
   const shift2Labor = bestB * LABOR_PER.B;
-  
   let bestOt2Score = Infinity;
   let bestD2 = 40, bestB2 = 0;
-  
   for (let d2 = 40; d2 <= 200; d2 += 1) {
-    // 从约束1求B2:
-    // shift2Labor - (d2 * LABOR_PER.D + b2 * LABOR_PER.B) * 2 = 0
-    // b2 = (shift2Labor / 2 - d2 * LABOR_PER.D) / LABOR_PER.B
     const b2Exact = (shift2Labor / 2 - d2 * LABOR_PER.D) / LABOR_PER.B;
-    // 使用floor确保不超限
     const b2Floor = Math.max(0, Math.floor(b2Exact));
     const b2Ceil = Math.max(0, Math.ceil(b2Exact));
-    
-    // 尝试floor和ceil两个候选值
     for (const b2 of [b2Floor, b2Ceil]) {
-      // 检查约束1的满足度（二加可用人数）
       const ot2LaborRemain = shift2Labor - (d2 * LABOR_PER.D + b2 * LABOR_PER.B) * 2;
-      if (ot2LaborRemain < -0.5) continue; // 人数不能超限
-      
-      // 检查约束2（二加可用机器）
+      if (ot2LaborRemain < -0.5) continue;
       const ot2MachineRemain = machines - (d2 * MACHINE_PER.D + b2 * MACHINE_PER.B) * 2;
-      if (ot2MachineRemain < -0.5) continue; // 机器不能超限
-      
-      // 综合评分：约束1接近0（高权重） + 约束2尽量小（低权重）
-      // 同时惩罚负值
+      if (ot2MachineRemain < -0.5) continue;
       const laborPenalty = ot2LaborRemain < 0 ? Math.abs(ot2LaborRemain) * 10 : Math.abs(ot2LaborRemain);
       const score = laborPenalty * 3 + Math.max(0, ot2MachineRemain);
-      
       if (score < bestOt2Score) {
         bestOt2Score = score;
         bestD2 = d2;
@@ -604,10 +836,9 @@ export function optimizeShiftPlan(
       }
     }
   }
-  
   plan.ot2.D = bestD2;
   plan.ot2.B = bestB2;
-  
+
   return plan;
 }
 
@@ -651,8 +882,8 @@ export function optimizeAllPeriods(params: SimulatorParams): PeriodShiftPlan[] {
     
     const totalAvailableWorkers = currentInitialWorkers - fire + hire * params.newWorkerEfficiency;
     
-    // 生成本期最优排产
-    const plan = optimizeShiftPlan(machines, totalAvailableWorkers);
+    // 生成本期最优排产（传入期数以查询颜色映射）
+    const plan = optimizeShiftPlan(machines, totalAvailableWorkers, i + 1);
     plans.push(plan);
     
     // 更新下一期的期初人数
@@ -740,7 +971,7 @@ export function previewP4Linkage(
   );
   
   // 生成第五期最优排产
-  const p5OptimalPlan = optimizeShiftPlan(p5Machines, p5TotalAvailableWorkers);
+  const p5OptimalPlan = optimizeShiftPlan(p5Machines, p5TotalAvailableWorkers, 5);
   
   // 计算约束
   const shift1LaborUsed = PRODUCT_KEYS.reduce(

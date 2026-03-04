@@ -14,6 +14,7 @@ import {
   SHIFT_LABELS,
   DEFAULT_PRODUCTS,
   setActiveProducts,
+  getActiveProducts,
   type ProductSpecInput,
   type SimulatorParams,
   type PeriodConfig,
@@ -104,7 +105,14 @@ export default function SimulatorTab() {
 
   // 实时计算
   const result = useMemo(() => calculateProduction(params), [params, productSpecs]);
-  const defaultResult = useMemo(() => calculateProduction(getDefaultParams()), []);
+  const defaultResult = useMemo(() => {
+    // 对比模式始终使用默认产品参数计算，以便与用户自定义参数对比
+    const saved = getActiveProducts();
+    setActiveProducts(DEFAULT_PRODUCTS);
+    const r = calculateProduction(getDefaultParams());
+    setActiveProducts(saved);
+    return r;
+  }, [productSpecs]);
 
   // 参数更新
   const updateParam = useCallback(<K extends keyof SimulatorParams>(key: K, value: SimulatorParams[K]) => {
@@ -368,138 +376,136 @@ export default function SimulatorTab() {
               <div className="text-xs text-gray-400 mt-1">默认: 25%</div>
             </div>
           </div>
-        </div>
-      </motion.div>
-
-      {/* Product Specs Panel */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden"
-      >
-        <button
-          onClick={() => setShowProductSpecs(!showProductSpecs)}
-          className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
-              <Factory className="w-4 h-4 text-violet-600" />
-            </div>
-            <div className="text-left">
-              <h3 className="font-semibold text-gray-900">产品规格参数</h3>
-              <p className="text-xs text-gray-500 mt-0.5">设置 A/B/C/D 产品的机器时、人力时、原材料单价</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {Object.entries(productSpecs).some(([k, v]) => 
-              v.machineHours !== DEFAULT_PRODUCTS[k].machineHours ||
-              v.laborHours !== DEFAULT_PRODUCTS[k].laborHours ||
-              v.materials !== DEFAULT_PRODUCTS[k].materials
-            ) && (
-              <span className="text-[10px] font-medium text-violet-600 bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">已修改</span>
-            )}
-            <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${showProductSpecs ? 'rotate-180' : ''}`} />
-          </div>
-        </button>
-
-        {showProductSpecs && (
-          <div className="px-6 pb-6 border-t border-gray-100">
-            <div className="overflow-x-auto mt-4">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-gray-500 uppercase tracking-wider">
-                    <th className="px-3 py-2 text-left">产品</th>
-                    <th className="px-3 py-2 text-center">机器时</th>
-                    <th className="px-3 py-2 text-center">人力时</th>
-                    <th className="px-3 py-2 text-center">原材料单价</th>
-                    <th className="px-3 py-2 text-center">机器/单位</th>
-                    <th className="px-3 py-2 text-center">人力/单位</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PRODUCT_KEYS.map(pk => {
-                    const spec = productSpecs[pk];
-                    const def = DEFAULT_PRODUCTS[pk];
-                    const isModified = spec.machineHours !== def.machineHours || spec.laborHours !== def.laborHours || spec.materials !== def.materials;
-                    return (
-                      <tr key={pk} className={`border-t border-gray-50 ${isModified ? 'bg-violet-50/30' : ''}`}>
-                        <td className="px-3 py-2">
-                          <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold ${
-                            pk === 'A' ? 'bg-blue-100 text-blue-700' :
-                            pk === 'B' ? 'bg-emerald-100 text-emerald-700' :
-                            pk === 'C' ? 'bg-amber-100 text-amber-700' :
-                            'bg-red-100 text-red-700'
-                          }`}>{pk}</span>
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={1}
-                            max={9999}
-                            value={spec.machineHours}
-                            onChange={e => updateProductSpec(pk, 'machineHours', Math.max(1, parseInt(e.target.value) || 1))}
-                            className={`w-full px-2 py-1.5 rounded-md border text-center font-mono text-sm transition-all outline-none ${
-                              spec.machineHours !== def.machineHours
-                                ? 'border-violet-300 bg-violet-50/50 focus:border-violet-400 focus:ring-2 focus:ring-violet-100'
-                                : 'border-gray-200 bg-gray-50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100'
-                            }`}
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={1}
-                            max={9999}
-                            value={spec.laborHours}
-                            onChange={e => updateProductSpec(pk, 'laborHours', Math.max(1, parseInt(e.target.value) || 1))}
-                            className={`w-full px-2 py-1.5 rounded-md border text-center font-mono text-sm transition-all outline-none ${
-                              spec.laborHours !== def.laborHours
-                                ? 'border-violet-300 bg-violet-50/50 focus:border-violet-400 focus:ring-2 focus:ring-violet-100'
-                                : 'border-gray-200 bg-gray-50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100'
-                            }`}
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <input
-                            type="number"
-                            min={1}
-                            max={99999}
-                            value={spec.materials}
-                            onChange={e => updateProductSpec(pk, 'materials', Math.max(1, parseInt(e.target.value) || 1))}
-                            className={`w-full px-2 py-1.5 rounded-md border text-center font-mono text-sm transition-all outline-none ${
-                              spec.materials !== def.materials
-                                ? 'border-violet-300 bg-violet-50/50 focus:border-violet-400 focus:ring-2 focus:ring-violet-100'
-                                : 'border-gray-200 bg-gray-50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100'
-                            }`}
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center font-mono text-xs text-gray-500">
-                          {(spec.machineHours / 520).toFixed(4)}
-                        </td>
-                        <td className="px-3 py-2 text-center font-mono text-xs text-gray-500">
-                          {(spec.laborHours / 520).toFixed(4)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-              <div className="text-xs text-gray-400">
-                机器/单位 = 机器时 ÷ 520，人力/单位 = 人力时 ÷ 520（自动计算）
+          {/* 产品规格参数 - 嵌入全局参数面板内部 */}
+          <div className="col-span-full mt-2">
+            <button
+              onClick={() => setShowProductSpecs(!showProductSpecs)}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-dashed border-violet-200 bg-violet-50/30 hover:bg-violet-50/60 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Factory className="w-4 h-4 text-violet-500" />
+                <span className="text-sm font-medium text-violet-700">产品规格参数</span>
+                <span className="text-[10px] text-violet-400">机器时 / 人力时 / 原材料</span>
+                {Object.entries(productSpecs).some(([k, v]) => 
+                  v.machineHours !== DEFAULT_PRODUCTS[k].machineHours ||
+                  v.laborHours !== DEFAULT_PRODUCTS[k].laborHours ||
+                  v.materials !== DEFAULT_PRODUCTS[k].materials
+                ) && (
+                  <span className="text-[10px] font-medium text-violet-600 bg-violet-100 px-1.5 py-0.5 rounded-full border border-violet-200">已修改</span>
+                )}
               </div>
-              <button
-                onClick={resetProductSpecs}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md hover:bg-gray-100 transition-colors"
-              >
-                <RotateCcw className="w-3 h-3" />
-                恢复默认值
-              </button>
-            </div>
+              <ChevronDown className={`w-4 h-4 text-violet-400 transition-transform ${showProductSpecs ? 'rotate-180' : ''}`} />
+            </button>
+
+            <AnimatePresence>
+              {showProductSpecs && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-3 p-4 rounded-lg border border-violet-100 bg-white">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-xs text-gray-500 uppercase tracking-wider">
+                            <th className="px-2 py-1.5 text-left w-12">产品</th>
+                            <th className="px-2 py-1.5 text-center">机器时</th>
+                            <th className="px-2 py-1.5 text-center">人力时</th>
+                            <th className="px-2 py-1.5 text-center">原材料</th>
+                            <th className="px-2 py-1.5 text-center text-violet-500">机器/单位</th>
+                            <th className="px-2 py-1.5 text-center text-violet-500">人力/单位</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {PRODUCT_KEYS.map(pk => {
+                            const spec = productSpecs[pk];
+                            const def = DEFAULT_PRODUCTS[pk];
+                            const isModified = spec.machineHours !== def.machineHours || spec.laborHours !== def.laborHours || spec.materials !== def.materials;
+                            return (
+                              <tr key={pk} className={`border-t border-gray-50 ${isModified ? 'bg-violet-50/30' : ''}`}>
+                                <td className="px-2 py-1.5">
+                                  <span className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs font-bold ${
+                                    pk === 'A' ? 'bg-blue-100 text-blue-700' :
+                                    pk === 'B' ? 'bg-emerald-100 text-emerald-700' :
+                                    pk === 'C' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-red-100 text-red-700'
+                                  }`}>{pk}</span>
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={9999}
+                                    value={spec.machineHours}
+                                    onChange={e => updateProductSpec(pk, 'machineHours', Math.max(1, parseInt(e.target.value) || 1))}
+                                    className={`w-full px-2 py-1 rounded border text-center font-mono text-sm transition-all outline-none ${
+                                      spec.machineHours !== def.machineHours
+                                        ? 'border-violet-300 bg-violet-50/50 focus:border-violet-400 focus:ring-2 focus:ring-violet-100'
+                                        : 'border-gray-200 bg-gray-50/80 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100'
+                                    }`}
+                                  />
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={9999}
+                                    value={spec.laborHours}
+                                    onChange={e => updateProductSpec(pk, 'laborHours', Math.max(1, parseInt(e.target.value) || 1))}
+                                    className={`w-full px-2 py-1 rounded border text-center font-mono text-sm transition-all outline-none ${
+                                      spec.laborHours !== def.laborHours
+                                        ? 'border-violet-300 bg-violet-50/50 focus:border-violet-400 focus:ring-2 focus:ring-violet-100'
+                                        : 'border-gray-200 bg-gray-50/80 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100'
+                                    }`}
+                                  />
+                                </td>
+                                <td className="px-2 py-1.5">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    max={99999}
+                                    value={spec.materials}
+                                    onChange={e => updateProductSpec(pk, 'materials', Math.max(1, parseInt(e.target.value) || 1))}
+                                    className={`w-full px-2 py-1 rounded border text-center font-mono text-sm transition-all outline-none ${
+                                      spec.materials !== def.materials
+                                        ? 'border-violet-300 bg-violet-50/50 focus:border-violet-400 focus:ring-2 focus:ring-violet-100'
+                                        : 'border-gray-200 bg-gray-50/80 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100'
+                                    }`}
+                                  />
+                                </td>
+                                <td className="px-2 py-1.5 text-center font-mono text-xs text-violet-500 font-medium">
+                                  {(spec.machineHours / 520).toFixed(4)}
+                                </td>
+                                <td className="px-2 py-1.5 text-center font-mono text-xs text-violet-500 font-medium">
+                                  {(spec.laborHours / 520).toFixed(4)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
+                      <div className="text-[11px] text-gray-400">
+                        修改产品参数后，所有排产计算、约束验证、最优求解均实时联动更新
+                      </div>
+                      <button
+                        onClick={resetProductSpecs}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        恢复默认
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-        )}
+        </div>
       </motion.div>
 
       {/* Per-period strategy config */}

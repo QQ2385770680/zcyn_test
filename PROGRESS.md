@@ -9,8 +9,8 @@
 
 | 字段 | 值 |
 |:---|:---|
-| **快照版本** | v0.7.0 |
-| **快照时间** | 2026-03-05T12:30:00+08:00 |
+| **快照版本** | v0.8.0 |
+| **快照时间** | 2026-03-05T13:35:00+08:00 |
 | **操作账号** | QQ2385770680 |
 | **当前分支** | main |
 | **最新Commit** | 见 git log |
@@ -38,52 +38,37 @@
 - [x] **F006: 生成 rule.xls 公式文档**
 - [x] **F007: AI指挥官工作流更新**
 - [x] **F008: 产品参数ABCD可输入变量**
+- [x] **F009: 产品参数融入模拟器内部，配合方案变化实时联动**
 
 ---
 
 ## 当前执行阶段（断点位置）
 
 ### 阶段名称
-F008 产品参数可输入变量完成，等待新指令
+F009 产品参数融入模拟器联动完成，等待新指令
 
 ### 已完成步骤
 
-1.  **需求分析**：
-    - 分析 `data.ts` 中 `products` 常量定义（A/B/C/D 各含 machineTime, laborTime, materials）
-    - 分析 `engine.ts` 中 `PRODUCTS`、`MACHINE_PER`、`LABOR_PER` 常量的使用方式
-    - 确认所有引用点：`engine.ts`（约60+处）、`SimulatorTab.tsx`、`CapacityTab.tsx`、`RulesTab.tsx`
+1.  **联动缺口分析**：
+    - 发现 `defaultResult` 的 `useMemo` 依赖为空数组 `[]`，不随 `productSpecs` 变化
+    - 产品参数面板作为独立面板存在，与全局参数面板视觉上分离
+    - 确认 `calculateProduction`、`optimizeAllPeriods`、`optimizeShiftPlan` 已通过 `_activeProducts` 正确联动
 
-2.  **data.ts 修改**：
-    - 新增 `ProductSpecInput` 接口（machineTime, laborTime, materials）
-    - 新增 `DEFAULT_PRODUCTS` 常量（保留原始默认值）
-    - 原 `products` 数组保留不变（供其他 Tab 使用）
+2.  **SimulatorTab.tsx 修改**：
+    - 将产品规格参数面板从独立 `motion.div` 移入全局参数面板的 `grid` 内部
+    - 使用 `col-span-full` 占满整行，紫色虚线边框按钮展开/折叠
+    - 使用 `AnimatePresence` + `motion.div` 实现平滑展开/折叠动画
+    - 修复 `defaultResult` 依赖：现在依赖 `[productSpecs]`，对比模式下默认方案随产品参数变化更新
+    - `defaultResult` 计算时临时切换为默认产品参数，计算完成后恢复用户参数
+    - 新增 `getActiveProducts` 导入
+    - 底部提示文字改为"修改产品参数后，所有排产计算、约束验证、最优求解均实时联动更新"
 
-3.  **engine.ts 修改**：
-    - 将 `PRODUCTS` 从 `const` 改为 `let _activeProducts`（可变模块级变量）
-    - 新增 `setActiveProducts(specs)` 函数，接受外部产品参数并更新内部变量
-    - 新增 `getActiveProducts()` 函数，供外部读取当前活动产品参数
-    - `SimulatorParams` 接口新增 `productSpecs` 可选字段
-    - `getMachinePerUnit(p)` 和 `getLaborPerUnit(p)` 改为使用 `_activeProducts`
-    - 将所有函数内部的 `MACHINE_PER[x]` 替换为局部变量 `MP[x]`（通过 `getMachinePerUnit` 获取）
-    - 将所有函数内部的 `LABOR_PER[x]` 替换为局部变量 `LP[x]`（通过 `getLaborPerUnit` 获取）
-    - 总计替换约60+处引用
-
-4.  **SimulatorTab.tsx 修改**：
-    - 新增 `productSpecs` state（类型为 `ProductSpecInput[]`）
-    - 新增 `updateProductSpec(index, field, value)` 函数
-    - 新增可折叠的「产品规格参数」面板，包含：
-      - 4行（A/B/C/D）× 3列（机器时/人力时/原材料）输入表格
-      - 右侧自动计算「机器/单位」和「人力/单位」
-      - 修改值后自动高亮（绿色边框）
-      - 底部显示「恢复默认值」按钮
-    - 重置参数时同步重置产品参数
-
-5.  **构建与UI验证**：
+3.  **构建与UI验证**：
     - `pnpm run build` 构建成功
     - 开发服务器启动，UI 验证通过
-    - 产品规格参数面板展开/折叠正常
-    - 输入框默认值正确（A:110/80/500, B:150/100/800, C:180/110/1600, D:280/140/2500）
-    - 机器/单位和人力/单位自动计算正确
+    - 产品参数面板已嵌入全局参数面板内部
+    - 展开/折叠动画正常
+    - 输入框值正确，机器/单位和人力/单位自动计算正确
 
 ### 下一步操作（恢复入口）
 
@@ -94,15 +79,13 @@ F008 产品参数可输入变量完成，等待新指令
 
 ---
 
-## 文件变更摘要 (v0.7.0)
+## 文件变更摘要 (v0.8.0)
 
 | 文件路径 | 变更类型 | 变更说明 |
 |:---|:---|:---|
-| `ibiz-production/client/src/lib/data.ts` | 更新 | 新增 `ProductSpecInput` 接口和 `DEFAULT_PRODUCTS` 常量 |
-| `ibiz-production/client/src/lib/engine.ts` | 重构 | `PRODUCTS` 改为 `_activeProducts`，新增 `setActiveProducts()`/`getActiveProducts()`，所有 `MACHINE_PER`/`LABOR_PER` 改为动态获取 |
-| `ibiz-production/client/src/components/SimulatorTab.tsx` | 更新 | 新增产品规格参数面板（可折叠、4×3输入表格、恢复默认值） |
-| `TASK_QUEUE.md` | 更新 | 新增 F007 任务记录并标记为已完成 |
-| `PROGRESS.md` | 更新 | v0.7.0 快照 |
+| `ibiz-production/client/src/components/SimulatorTab.tsx` | 重构 | 产品参数面板从独立区域移入全局参数面板内部；`defaultResult` 依赖 `productSpecs`；新增 `AnimatePresence` 动画 |
+| `TASK_QUEUE.md` | 更新 | 新增 F008 任务记录并标记为已完成 |
+| `PROGRESS.md` | 更新 | v0.8.0 快照 |
 
 ---
 
@@ -113,6 +96,8 @@ F008 产品参数可输入变量完成，等待新指令
 | 2026-03-05 | 使用模块级 `_activeProducts` 变量而非参数传递 | engine.ts 中有60+处引用，参数传递改动量过大且容易遗漏 |
 | 2026-03-05 | 在函数入口获取局部 `MP`/`LP` 变量 | 避免在每次计算时重复调用函数，提高性能 |
 | 2026-03-05 | 产品参数面板默认折叠 | 大多数用户不需要修改产品参数，保持界面简洁 |
+| 2026-03-05 | `defaultResult` 计算时临时切换产品参数 | 确保对比模式始终使用默认参数计算，避免对比基准随用户修改而变化 |
+| 2026-03-05 | 产品参数面板嵌入全局参数面板 | 视觉上属于同一个配置区域，用户更容易理解参数之间的联动关系 |
 
 ---
 
@@ -120,6 +105,7 @@ F008 产品参数可输入变量完成，等待新指令
 
 | 快照时间 | Commit | 阶段描述 |
 |:---|:---|:---|
+| 2026-03-05 | v0.8.0 | F009: 产品参数融入模拟器内部，配合方案变化实时联动 |
 | 2026-03-05 | v0.7.0 | F008: 产品参数ABCD可输入变量 |
 | 2026-03-05 | v0.6.0 | F007: AI指挥官工作流更新，固化三文件SOP |
 | 2026-03-05 | 1c6e1f8c | F006: 生成 rule.xls 公式详解文档 |

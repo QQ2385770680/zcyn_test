@@ -225,6 +225,7 @@ export default function SimulatorTab() {
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                 <Cpu className="w-4 h-4 text-emerald-500" />
                 初始机器数量
+                <span className="text-[9px] font-bold text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-200">必填</span>
               </label>
               <input
                 type="number"
@@ -232,15 +233,16 @@ export default function SimulatorTab() {
                 max={999}
                 value={params.initialMachines}
                 onChange={e => updateParam('initialMachines', Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 font-mono text-sm focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 focus:bg-white transition-all outline-none"
+                className="w-full px-3 py-2.5 rounded-lg border border-yellow-300 bg-yellow-50/50 font-mono text-sm focus:border-yellow-400 focus:ring-2 focus:ring-yellow-100 focus:bg-white transition-all outline-none"
               />
-              <div className="text-xs text-gray-400 mt-1">默认: 157</div>
+              <div className="text-xs text-gray-400 mt-1">默认: 157（对应 Excel 第1期本期机器）</div>
             </div>
 
             <div>
               <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                 <Users className="w-4 h-4 text-indigo-500" />
                 初始工人数量
+                <span className="text-[9px] font-bold text-yellow-500 bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-200">必填</span>
               </label>
               <input
                 type="number"
@@ -248,9 +250,9 @@ export default function SimulatorTab() {
                 max={9999}
                 value={params.initialWorkers}
                 onChange={e => updateParam('initialWorkers', Math.max(1, parseInt(e.target.value) || 1))}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 font-mono text-sm focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:bg-white transition-all outline-none"
+                className="w-full px-3 py-2.5 rounded-lg border border-yellow-300 bg-yellow-50/50 font-mono text-sm focus:border-yellow-400 focus:ring-2 focus:ring-yellow-100 focus:bg-white transition-all outline-none"
               />
-              <div className="text-xs text-gray-400 mt-1">默认: 113</div>
+              <div className="text-xs text-gray-400 mt-1">默认: 113（对应 Excel 第1期期初人数）</div>
             </div>
 
             <div>
@@ -400,40 +402,57 @@ export default function SimulatorTab() {
                             ))}
                           </select>
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 relative">
+                          <span className="absolute -top-0.5 right-1 text-[8px] font-bold text-orange-500">选填</span>
                           <input
                             type="number"
                             min={0}
                             disabled={config.hireStrategy !== 'custom'}
                             value={config.customHire || 0}
                             onChange={e => updatePeriodConfig(i, { customHire: Math.max(0, parseInt(e.target.value) || 0) })}
-                            className="w-full px-2.5 py-1.5 rounded-md border border-gray-200 bg-gray-50 font-mono text-sm disabled:opacity-40 disabled:cursor-not-allowed focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 outline-none"
+                            className="w-full px-2.5 py-1.5 rounded-md border border-orange-300 bg-orange-50/50 font-mono text-sm disabled:opacity-40 disabled:cursor-not-allowed focus:border-orange-400 focus:ring-1 focus:ring-orange-100 outline-none"
                           />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 relative">
+                          <span className="absolute -top-0.5 right-1 text-[8px] font-bold text-orange-500">选填</span>
                           <input
                             type="number"
                             min={pr ? pr.minFire : 0}
                             max={pr ? pr.maxFire : 999}
                             value={config.customFire ?? (pr ? pr.minFire : 0)}
                             onChange={e => updatePeriodConfig(i, { customFire: Math.max(0, parseInt(e.target.value) || 0) })}
-                            className="w-full px-2.5 py-1.5 rounded-md border border-gray-200 bg-gray-50 font-mono text-sm focus:border-red-400 focus:ring-1 focus:ring-red-100 outline-none"
+                            className="w-full px-2.5 py-1.5 rounded-md border border-orange-300 bg-orange-50/50 font-mono text-sm focus:border-orange-400 focus:ring-1 focus:ring-orange-100 outline-none"
                           />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 relative">
+                          <span className="absolute -top-0.5 right-1 text-[8px] font-bold text-orange-500">选填</span>
                           <input
                             type="number"
                             min={0}
                             value={config.machinePurchase || 0}
                             onChange={e => updatePeriodConfig(i, { machinePurchase: Math.max(0, parseInt(e.target.value) || 0) })}
-                            className="w-full px-2.5 py-1.5 rounded-md border border-gray-200 bg-gray-50 font-mono text-sm focus:border-emerald-400 focus:ring-1 focus:ring-emerald-100 outline-none"
+                            className="w-full px-2.5 py-1.5 rounded-md border border-orange-300 bg-orange-50/50 font-mono text-sm focus:border-orange-400 focus:ring-1 focus:ring-orange-100 outline-none"
                           />
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-gray-600">{pr ? Math.round(pr.initialWorkers) : '-'}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs text-gray-500">
-                          {pr ? `${pr.minFire}~${pr.maxFire}` : '-'}
+                        <td className="px-3 py-2 text-right">
+                          <span className={`font-mono px-2 py-1 rounded-md text-sm ${
+                            i === 0
+                              ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                              : 'bg-sky-50 text-sky-700 border border-sky-200'
+                          }`}>
+                            {pr ? Math.round(pr.initialWorkers) : '-'}
+                          </span>
                         </td>
-                        <td className="px-3 py-2 text-right font-mono text-gray-600">{pr ? pr.maxHire : '-'}</td>
+                        <td className="px-3 py-2 text-right">
+                          <span className="font-mono text-xs px-2 py-1 rounded-md bg-sky-50 text-sky-600 border border-sky-200">
+                            {pr ? `${pr.minFire}~${pr.maxFire}` : '-'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <span className="font-mono px-2 py-1 rounded-md text-sm bg-sky-50 text-sky-700 border border-sky-200">
+                            {pr ? pr.maxHire : '-'}
+                          </span>
+                        </td>
                       </tr>
                     );
                   })}
@@ -546,21 +565,43 @@ export default function SimulatorTab() {
                       className="overflow-hidden"
                     >
                       <div className="px-6 pb-6">
-                        {/* Period info bar */}
+                        {/* Period info bar - 颜色对应 Excel: 黄=必填, 橙=选填, 蓝=公式 */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-5">
-                          <div className="bg-gray-50 rounded-lg px-3 py-2">
-                            <div className="text-xs text-gray-500">本期机器</div>
+                          <div className={`rounded-lg px-3 py-2 border ${
+                            i === 0
+                              ? 'bg-yellow-50 border-yellow-300'
+                              : 'bg-sky-50 border-sky-200'
+                          }`}>
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                              本期机器
+                              <span className={`text-[8px] font-bold ${
+                                i === 0 ? 'text-yellow-500' : 'text-sky-500'
+                              }`}>
+                                {i === 0 ? '必填' : '公式'}
+                              </span>
+                            </div>
                             <div className="font-mono font-semibold text-gray-900">{pr.machines}</div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg px-3 py-2">
-                            <div className="text-xs text-gray-500">期初人数</div>
+                          <div className={`rounded-lg px-3 py-2 border ${
+                            i === 0
+                              ? 'bg-yellow-50 border-yellow-300'
+                              : 'bg-sky-50 border-sky-200'
+                          }`}>
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                              期初人数
+                              <span className={`text-[8px] font-bold ${
+                                i === 0 ? 'text-yellow-500' : 'text-sky-500'
+                              }`}>
+                                {i === 0 ? '必填' : '公式'}
+                              </span>
+                            </div>
                             <div className="font-mono font-semibold text-gray-900">{Math.round(pr.initialWorkers)}</div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg px-3 py-2">
+                          <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
                             <div className="text-xs text-gray-500">可用人数</div>
                             <div className="font-mono font-semibold text-gray-900">{pr.totalAvailableWorkers}</div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg px-3 py-2">
+                          <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
                             <div className="text-xs text-gray-500">解雇/雇佣</div>
                             <div className="font-mono font-semibold">
                               <span className="text-red-500">-{pr.fire}</span>
@@ -568,12 +609,18 @@ export default function SimulatorTab() {
                               <span className="text-emerald-600">+{pr.hire}</span>
                             </div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg px-3 py-2">
-                            <div className="text-xs text-gray-500">解雇范围</div>
+                          <div className="bg-sky-50 rounded-lg px-3 py-2 border border-sky-200">
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                              解雇范围
+                              <span className="text-[8px] font-bold text-sky-500">公式</span>
+                            </div>
                             <div className="font-mono font-semibold text-gray-900">{pr.minFire}~{pr.maxFire}</div>
                           </div>
-                          <div className="bg-gray-50 rounded-lg px-3 py-2">
-                            <div className="text-xs text-gray-500">最大雇佣</div>
+                          <div className="bg-sky-50 rounded-lg px-3 py-2 border border-sky-200">
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                              最大雇佣
+                              <span className="text-[8px] font-bold text-sky-500">公式</span>
+                            </div>
                             <div className="font-mono font-semibold text-gray-900">{pr.maxHire}</div>
                           </div>
                         </div>
@@ -589,15 +636,19 @@ export default function SimulatorTab() {
                           </button>
                         </div>
 
-                        {/* Color legend */}
+                        {/* Color legend - 严格对应 Excel 颜色 */}
                         <div className="flex items-center gap-4 mb-2 text-xs">
                           <span className="flex items-center gap-1.5">
                             <span className="w-4 h-4 rounded border-2 border-yellow-400 bg-yellow-50"></span>
                             <span className="text-gray-600">黄格 = 必填</span>
                           </span>
                           <span className="flex items-center gap-1.5">
-                            <span className="w-4 h-4 rounded border-2 border-amber-400 bg-amber-50"></span>
+                            <span className="w-4 h-4 rounded border-2 border-orange-400 bg-orange-50"></span>
                             <span className="text-gray-600">橙格 = 选填</span>
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-4 h-4 rounded border-2 border-sky-400 bg-sky-50"></span>
+                            <span className="text-gray-600">蓝格 = 公式</span>
                           </span>
                           <span className="flex items-center gap-1.5">
                             <span className="w-4 h-4 rounded border border-gray-200 bg-gray-50/50"></span>
@@ -659,14 +710,14 @@ export default function SimulatorTab() {
                                     {PRODUCT_KEYS.map(p => {
                                       const cellColor = getCellColor(i + 1, shift, p);
                                       const hasValue = (plan[p] || 0) > 0;
-                                      // 黄格=必填(yellow), 金格=必填变体(gold), 无标记=不填
+                                      // 黄格=必填(yellow), 橙格=选填(orange), 无标记=不填
                                       let inputStyle = '';
                                       if (hasValue) {
                                         inputStyle = 'border-emerald-300 bg-emerald-50/50 text-emerald-800 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100';
                                       } else if (cellColor === 'yellow') {
                                         inputStyle = 'border-yellow-400 bg-yellow-50 text-yellow-700 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100 ring-1 ring-yellow-200';
-                                      } else if (cellColor === 'gold') {
-                                        inputStyle = 'border-amber-400 bg-amber-50 text-amber-700 focus:border-amber-500 focus:ring-2 focus:ring-amber-100 ring-1 ring-amber-200';
+                                      } else if (cellColor === 'orange') {
+                                        inputStyle = 'border-orange-400 bg-orange-50 text-orange-700 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 ring-1 ring-orange-200';
                                       } else {
                                         inputStyle = 'border-gray-200 bg-gray-50/50 text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100';
                                       }
@@ -674,7 +725,7 @@ export default function SimulatorTab() {
                                         <td key={p} className="px-2 py-1.5 relative">
                                           {cellColor !== 'none' && !hasValue && (
                                             <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${
-                                              cellColor === 'yellow' ? 'text-yellow-500' : 'text-amber-500'
+                                              cellColor === 'yellow' ? 'text-yellow-500' : 'text-orange-500'
                                             }`}>
                                               {cellColor === 'yellow' ? '必填' : '选填'}
                                             </span>

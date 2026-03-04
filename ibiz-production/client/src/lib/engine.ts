@@ -833,52 +833,57 @@ export function batchPreviewP4Linkage(
 
 
 // ============================================================
-// 黄格/橙格颜色映射（来自Excel原始数据）
-// yellow = 必填, gold = 必填变体, 无标记 = 不填
+// 黄格/橙格颜色映射（严格基于 rule.xls Excel 原始数据）
+// yellow = 必填（黄格，对应 Excel 黄色 255,255,0 和金黄色 255,204,0）
+// orange = 选填（橙格，对应 Excel 橙色 255,204,153）
+// none = 无标记（不需要填写，公式计算或禁区）
 // ============================================================
-export type CellColor = 'yellow' | 'gold' | 'none';
+export type CellColor = 'yellow' | 'orange' | 'none';
 
 // 每期每班次每产品的颜色标记
 // key = `P${period}_${shift}_${product}`, value = CellColor
+// 注意：产量区域中仅有黄色（必填），无橙色（选填）
+// 橙色（选填）仅出现在右侧参数区（本期购买、本期解雇、本期雇佣）
 const COLOR_MAP: Record<string, CellColor> = {
-  // 第1期
+  // 第1期（6个必填格）
   'P1_ot1_A': 'yellow',
   'P1_shift2_B': 'yellow',
-  'P1_ot2_B': 'gold',
+  'P1_ot2_B': 'yellow',
   'P1_shift1_C': 'yellow',
   'P1_shift1_D': 'yellow',
   'P1_ot2_D': 'yellow',
-  // 第2期
+  // 第2期（7个必填格）
   'P2_shift1_A': 'yellow',
   'P2_ot1_A': 'yellow',
   'P2_shift1_B': 'yellow',
   'P2_shift2_C': 'yellow',
-  'P2_ot2_C': 'gold',
+  'P2_ot2_C': 'yellow',
   'P2_shift2_D': 'yellow',
   'P2_ot2_D': 'yellow',
-  // 第3期
+  // 第3期（8个必填格）
   'P3_shift1_A': 'yellow',
-  'P3_ot1_A': 'gold',
+  'P3_ot1_A': 'yellow',
   'P3_shift1_B': 'yellow',
-  'P3_shift1_C': 'gold',
+  'P3_shift1_C': 'yellow',
   'P3_shift2_C': 'yellow',
   'P3_ot2_C': 'yellow',
   'P3_shift2_D': 'yellow',
   'P3_ot2_D': 'yellow',
-  // 第4期
+  // 第4期（6个必填格）
   'P4_shift1_A': 'yellow',
   'P4_shift1_B': 'yellow',
   'P4_shift2_C': 'yellow',
   'P4_ot2_C': 'yellow',
   'P4_shift2_D': 'yellow',
   'P4_ot2_D': 'yellow',
-  // 第5期
+  // 第5期（6个必填格）
   'P5_shift1_A': 'yellow',
   'P5_shift1_B': 'yellow',
   'P5_shift2_C': 'yellow',
   'P5_ot2_C': 'yellow',
   'P5_shift2_D': 'yellow',
   'P5_ot2_D': 'yellow',
+  // 第6-9期：Excel 中无颜色标记（全白），不在此映射中
 };
 
 /**
@@ -886,7 +891,7 @@ const COLOR_MAP: Record<string, CellColor> = {
  * @param period 期数（1-based）
  * @param shift 班次名
  * @param product 产品名
- * @returns 'yellow' | 'gold' | 'none'
+ * @returns 'yellow'(必填) | 'orange'(选填) | 'none'(无标记)
  */
 export function getCellColor(period: number, shift: ShiftName, product: ProductKey): CellColor {
   const key = `P${period}_${shift}_${product}`;
@@ -894,18 +899,34 @@ export function getCellColor(period: number, shift: ShiftName, product: ProductK
 }
 
 /**
- * 判断某期某班次某产品是否为橙格（选填）
- * 橙格 = 有颜色标记但为 gold 的
+ * 判断某期某班次某产品是否为选填（橙格）
  */
 export function isOptionalCell(period: number, shift: ShiftName, product: ProductKey): boolean {
-  return getCellColor(period, shift, product) === 'gold';
+  return getCellColor(period, shift, product) === 'orange';
 }
 
 /**
- * 判断某期某班次某产品是否为必填
- * 必填 = yellow 或 gold
+ * 判断某期某班次某产品是否为必填（黄格）
  */
 export function isRequiredCell(period: number, shift: ShiftName, product: ProductKey): boolean {
-  const color = getCellColor(period, shift, product);
-  return color === 'yellow' || color === 'gold';
+  return getCellColor(period, shift, product) === 'yellow';
+}
+
+// ============================================================
+// 右侧参数区颜色映射（基于 rule.xls）
+// 第1期：本期机器=黄色(必填), 期初人数=黄色(必填)
+// 所有期：本期购买=橙色(选填), 本期解雇=橙色(选填), 本期雇佣=橙色(选填)
+// 其余（本期机器2+期、期初人数2+期、最少解雇、最大雇佣）=蓝色(公式计算)
+// ============================================================
+export type ParamColor = 'yellow' | 'orange' | 'blue' | 'none';
+
+export function getParamColor(period: number, paramName: string): ParamColor {
+  if (paramName === '本期机器') return period === 1 ? 'yellow' : 'blue';
+  if (paramName === '期初人数') return period === 1 ? 'yellow' : 'blue';
+  if (paramName === '本期购买') return 'orange';
+  if (paramName === '本期解雇') return 'orange';
+  if (paramName === '本期雇佣') return 'orange';
+  if (paramName === '最少解雇') return 'blue';
+  if (paramName === '最大雇佣') return 'blue';
+  return 'none';
 }

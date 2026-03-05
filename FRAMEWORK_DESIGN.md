@@ -184,3 +184,132 @@ export interface FinanceDecision {
 }
 
 ```
+
+## 5. 核心架构：三层数据模型
+
+根据我们的讨论，系统将采用一个清晰的三层数据模型来解耦**企业状态 (State)**、**决策意图 (Plan)** 和 **最终决策 (Decision)**。这个模型是整个系统的基石，确保了灵活性和可扩展性。
+
+```mermaid
+graph TD
+    A[1. EnterpriseState<br>(企业状态)] --> B[2. DecisionPlan<br>(决策方案)];
+    B --> C[3. IBizSimDecision<br>(最终决策)];
+
+    subgraph "用户输入/报表导入"
+        A
+    end
+
+    subgraph "用户配置/预设模板"
+        B
+    end
+
+    subgraph "提交给竞赛系统"
+        C
+    end
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#ccf,stroke:#333,stroke-width:2px
+    style C fill:#9f9,stroke:#333,stroke-width:2px
+```
+
+| 层级 | 名称 | 说明 | 谁填写 |
+|:---|:---|:---|:---|
+| **第1层** | `EnterpriseState` | 企业当前状态，包含从竞赛系统报表中获取的所有初始数据，如上期库存、市场份额、财务状况等。 | 学员从竞赛系统抄入或通过“一键导入报表”功能自动填充。 |
+| **第2层** | `DecisionPlan` | 用户的决策意图和策略配置。它不包含具体的决策数值，而是描述**如何得出这些数值**。 | 学员手动配置，或从预设的策略模板库（如“激进扩张型”、“稳健运营型”）中选择。 |
+| **第3层** | `IBizSimDecision` | 最终生成的、可直接提交给竞赛系统的完整决策数据。 | 由计算引擎根据 `EnterpriseState` 和 `DecisionPlan` 自动计算生成。 |
+
+这个分层架构的**最大优势**在于：计算引擎（Solver）的输入是固定的（`State` + `Plan`），输出也是固定的（`Decision`）。无论前端如何变化，无论我们未来增加多少种决策策略，计算引擎的核心逻辑都保持稳定。
+
+## 6. 决策方案 (`DecisionPlan`) 结构设计 (v0.1)
+
+`DecisionPlan` 是实现“公式推荐”和“AI辅助”模式的核心。它定义了每个决策单元格的行为模式。
+
+```typescript
+// DecisionPlan.ts
+
+/**
+ * @file Defines the structure for a strategic decision plan.
+ * @version 0.1
+ */
+
+/**
+ * Defines the behavior for a single decision cell (e.g., a single input field).
+ */
+export type CellBehavior =
+  | { mode: 'manual'; value: number } // Manually set a fixed value
+  | { mode: 'solve'; solveRange?: [number, number] } // Let the system solve for the optimal value, optionally within a range
+  | { mode: 'ai_solve'; goal: string }; // Let an AI model solve based on a natural language goal
+
+/**
+ * A plan for how to approach production scheduling.
+ */
+export interface ProductionPlan {
+  schedule: {
+    productA: ShiftProductionPlan;
+    productB: ShiftProductionPlan;
+    productC: ShiftProductionPlan;
+    productD: ShiftProductionPlan;
+  };
+  // ... other production-related plans
+}
+
+export interface ShiftProductionPlan {
+  shift1: CellBehavior;
+  shift1_overtime: CellBehavior;
+  shift2: CellBehavior;
+  shift2_overtime: CellBehavior;
+}
+
+/**
+ * The top-level Decision Plan.
+ * This structure mirrors IBizSimDecision, but instead of values, it holds behaviors.
+ */
+export interface DecisionPlan {
+  meta: {
+    planName: string;
+    planVersion: string;
+  };
+  production: ProductionPlan;
+  // marketing: MarketingPlan;
+  // humanResources: HumanResourcesPlan;
+  // finance: FinancePlan;
+  // ... and so on for all other domains
+}
+
+```
+
+### 示例
+
+假设学员想让系统自动求解产品A在第一班的产量，但限制在100到200之间，那么对应的 `DecisionPlan` 片段就是：
+
+```json
+{
+  "production": {
+    "schedule": {
+      "productA": {
+        "shift1": {
+          "mode": "solve",
+          "solveRange": [100, 200]
+        },
+        // ... other shifts
+      }
+    }
+  }
+}
+```
+
+如果他想手动设置产量为150，则是：
+
+```json
+{
+  "production": {
+    "schedule": {
+      "productA": {
+        "shift1": {
+          "mode": "manual",
+          "value": 150
+        }
+      }
+    }
+  }
+}
+```

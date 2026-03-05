@@ -914,7 +914,78 @@ export default function SimulatorTab({ onParamsChange }: SimulatorTabProps = {})
                                   {pr.periodTotal}
                                 </td>
                               </tr>
-                              {/* 可用人数和可用机器行已隐藏（布局紧凑） */}
+                              {/* 可用人数行 */}
+                              <tr className="border-t border-gray-100">
+                                <td className="px-3 py-2 text-xs font-medium text-gray-500">可用人数</td>
+                                {SHIFT_NAMES.map(shift => {
+                                  let constraint: ConstraintStatus | null = null;
+                                  let label = '';
+                                  if (shift === 'shift1') { constraint = pr.availWorkers_afterShift1; label = '一班后'; }
+                                  else if (shift === 'ot1') { constraint = pr.availWorkers_afterOT1; label = '一加后'; }
+                                  else if (shift === 'shift2') { constraint = null; }
+                                  else if (shift === 'ot2') { constraint = pr.availWorkers_afterOT2; label = '二加后'; }
+                                  return (
+                                    <td key={shift} className="px-2 py-2">
+                                      {!constraint && shift === 'shift2' && (
+                                        <div className="flex items-center justify-center">
+                                          <AlertTriangle className="w-4 h-4 text-gray-300" />
+                                        </div>
+                                      )}
+                                      {constraint && (
+                                        <div className="flex flex-col items-center gap-0.5">
+                                          <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(constraint)}`}>
+                                            {constraintIcon(constraint)}
+                                            <span>{constraint.value.toFixed(3)}</span>
+                                          </div>
+                                          <span className="text-[9px] text-gray-400">{label}</span>
+                                          {shift === 'ot2' && (
+                                            <div className="text-[9px] text-violet-500 font-mono">
+                                              上限:{pr.ot2_maxWorkers.toFixed(1)} 已用:{pr.ot2_usedWorkers.toFixed(1)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                                <td></td>
+                              </tr>
+                              {/* 可用机器行 */}
+                              <tr className="border-t border-gray-100">
+                                <td className="px-3 py-2 text-xs font-medium text-gray-500">可用机器</td>
+                                {SHIFT_NAMES.map(shift => {
+                                  let constraint: ConstraintStatus | null = null;
+                                  let label = '';
+                                  if (shift === 'shift1') { constraint = pr.availMachines_afterShift1; label = '一班后'; }
+                                  else if (shift === 'ot1') { constraint = null; }
+                                  else if (shift === 'shift2') { constraint = pr.availMachines_afterShift2; label = '二班后'; }
+                                  else if (shift === 'ot2') { constraint = pr.availMachines_afterOT2; label = '二加后'; }
+                                  return (
+                                    <td key={shift} className="px-2 py-2">
+                                      {!constraint && shift === 'ot1' && (
+                                        <div className="flex items-center justify-center">
+                                          <AlertTriangle className="w-4 h-4 text-gray-300" />
+                                        </div>
+                                      )}
+                                      {constraint && (
+                                        <div className="flex flex-col items-center gap-0.5">
+                                          <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(constraint)}`}>
+                                            {constraintIcon(constraint)}
+                                            <span>{constraint.value.toFixed(3)}</span>
+                                          </div>
+                                          <span className="text-[9px] text-gray-400">{label}</span>
+                                          {shift === 'ot2' && (
+                                            <div className="text-[9px] text-violet-500 font-mono">
+                                              上限:{pr.ot2_maxMachines.toFixed(1)} 已用:{pr.ot2_usedMachines.toFixed(1)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                                <td></td>
+                              </tr>
                             </tbody>
                           </table>
                         </div>

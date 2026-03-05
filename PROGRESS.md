@@ -9,8 +9,8 @@
 
 | 字段 | 值 |
 |:---|:---|
-| **快照版本** | v0.9.3 |
-| **快照时间** | 2026-03-04T22:45:00-05:00 |
+| **快照版本** | v0.9.4 |
+| **快照时间** | 2026-03-04T23:00:00-05:00 |
 | **操作账号** | QQ2385770680 |
 | **当前分支** | main |
 | **最新Commit** | 见 git log |
@@ -45,50 +45,39 @@
 - [x] **最终构建发布 (v0.9.2)**
 - [x] **F010: 智能决策模拟重命名/8期/可变初始参数/隐藏班次后行/选填青色 (v0.9.3)**
 - [x] **最终构建发布 (v0.9.3)**
+- [x] **恢复可用人数/可用机器行显示 (v0.9.4)**
 
 ---
 
 ## 当前执行阶段（断点位置）
 
 ### 阶段名称
-v0.9.3 F010 功能实现并部署完成
+v0.9.4 恢复可用人数/可用机器行显示并部署完成
 
 ### 已完成步骤
 
-1.  **需求分析**：读取三文件工作流，确认 F010 需求内容
+1.  **恢复代码**：将 `SimulatorTab.tsx` 中「可用人数」行（一班后/一加后/二加后）和「可用机器」行（一班后/二班后/二加后）完整恢复
 
-2.  **代码修改**：
-    - `engine.ts`：`totalPeriods: 9` → `8`，循环初始化从 9 改为 8
-    - `SimulatorTab.tsx`：标题「自定义参数模拟器」→「智能决策模拟」
-    - `SimulatorTab.tsx`：隐藏每期小计中的「一班后」「一加后」「二班后」「二加后」行
-    - `SimulatorTab.tsx`：选填颜色全面从橙色改为青色（cyan）
-    - `SimulatorTab.tsx`：添加 `onParamsChange` 回调 prop
-    - `HeroSection.tsx`：接受 `initialMachines`/`initialWorkers`/`totalPeriods` props，动态显示
-    - `Home.tsx`：提升状态，将参数传递给 HeroSection
+2.  **构建验证**：成功，2629 modules transformed
 
-3.  **构建验证**：成功，2629 modules transformed
-
-4.  **部署**：强制推送到 `gh-pages` 分支（commit: `391c66b9`）
+3.  **部署**：强制推送到 `gh-pages` 分支（commit: `7de607d4`）
 
 ### 下一步操作（恢复入口）
 
 > **恢复指令**：
-> 1. F010 已完成并部署（v0.9.3）。
+> 1. v0.9.4 已完成并部署。
 > 2. 项目处于稳定发布状态，无待执行任务。
 > 3. 如有新需求，严格遵循 `TASK_CONTEXT.md` 中定义的“AI指挥官工作流”。
 
 ---
 
-## 文件变更摘要 (v0.9.3)
+## 文件变更摘要 (v0.9.4)
 
 | 文件路径 | 变更类型 | 变更说明 |
 |:---|:---|:---|
-| `ibiz-production/client/src/lib/engine.ts` | 修改 | `totalPeriods: 9` → `8`，循环初始化从 9 改为 8 |
-| `ibiz-production/client/src/components/SimulatorTab.tsx` | 修改 | 标题重命名、隐藏班次后行、选填青色、添加 onParamsChange 回调 |
-| `ibiz-production/client/src/components/HeroSection.tsx` | 修改 | 接受 props 动态显示初始机器/工人/期数 |
-| `ibiz-production/client/src/pages/Home.tsx` | 修改 | 提升状态，将参数传递给 HeroSection |
-| `gh-pages` 分支 | 部署 | F010 全部变更重新构建并部署（commit: `391c66b9`） |
-| `PROGRESS.md` | 更新 | v0.9.3 快照 |
+| `ibiz-production/client/src/components/SimulatorTab.tsx` | 恢复 | 恢复「可用人数」行和「可用机器」行的完整显示 |
+| `gh-pages` 分支 | 部署 | 恢复行显示重新构建并部署（commit: `7de607d4`） |
+| `PROGRESS.md` | 更新 | v0.9.4 快照 |
 
 ---
 
@@ -111,6 +100,7 @@ v0.9.3 F010 功能实现并部署完成
 
 | 快照时间 | Commit | 阶段描述 |
 |:---|:---|:---|
+| 2026-03-04 | v0.9.4 | 恢复可用人数/可用机器行显示 |
 | 2026-03-04 | v0.9.3 | F010: 智能决策模拟重命名/8期/可变初始参数/隐藏班次后行/选填青色 |
 | 2026-03-05 | v0.9.2 | 最终构建发布：包含 v0.9.1 后所有 UI 重构（品牌更名/布局优化/感叹号图标）重新部署 |
 | 2026-03-05 | v0.9.1 | 修复自定义域名白屏：base path 从 /zcyn_test/ 改为 / |

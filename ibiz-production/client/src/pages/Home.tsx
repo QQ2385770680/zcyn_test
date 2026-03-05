@@ -1,37 +1,12 @@
-// iBizSim 连续排产规则计算器 - 主页
-// 设计风格: 模块化控制台 (Bauhaus Functionalism + Modern SaaS Dashboard)
-// 米白暖色背景(#F8F6F3) + 深色卡片对比
-// 翡翠绿(#059669) / 靛蓝(#4F46E5) / 珊瑚色(#F97316)
+// 无双·iBizSim智能决策引擎 - 主页
+// 方案一：轻量化重构 — 仅保留参数模拟器
 
-import { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import HeroSection from '@/components/HeroSection';
-import RulesTab from '@/components/RulesTab';
-import PeriodsTab from '@/components/PeriodsTab';
-import CapacityTab from '@/components/CapacityTab';
-import CostTab from '@/components/CostTab';
 import SimulatorTab from '@/components/SimulatorTab';
-import { BookOpen, Calculator, BarChart3, Scale, Sliders, ArrowUp } from 'lucide-react';
-
-const tabs = [
-  { id: 'rules', label: '规则说明', icon: BookOpen },
-  { id: 'periods', label: '期数计算', icon: Calculator },
-  { id: 'capacity', label: '产能分析', icon: BarChart3 },
-  { id: 'cost', label: '成本对比', icon: Scale },
-  { id: 'simulator', label: '参数模拟器', icon: Sliders },
-];
+import { ArrowUp } from 'lucide-react';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('rules');
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  const handleNavigate = (tab: string) => {
-    setActiveTab(tab);
-    setTimeout(() => {
-      contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
-  };
-
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -39,52 +14,17 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero */}
-      <HeroSection onNavigate={handleNavigate} />
+      <HeroSection />
 
-      {/* Tab Navigation */}
-      <div ref={contentRef} className="sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b border-gray-100">
-        <div className="container">
-          <nav className="flex gap-1 overflow-x-auto py-2 -mb-px">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-5 py-3 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                  activeTab === tab.id
-                    ? tab.id === 'simulator'
-                      ? 'bg-amber-50 text-amber-700 shadow-sm'
-                      : 'bg-emerald-50 text-emerald-700 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-                {tab.id === 'simulator' && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold">NEW</span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </div>
-
-      {/* Tab Content */}
+      {/* Main Content — 参数模拟器 */}
       <main className="container py-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.25 }}
-          >
-            {activeTab === 'rules' && <RulesTab />}
-            {activeTab === 'periods' && <PeriodsTab />}
-            {activeTab === 'capacity' && <CapacityTab />}
-            {activeTab === 'cost' && <CostTab />}
-            {activeTab === 'simulator' && <SimulatorTab />}
-          </motion.div>
-        </AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          <SimulatorTab />
+        </motion.div>
       </main>
 
       {/* Footer */}
@@ -92,7 +32,7 @@ export default function Home() {
         <div className="container py-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="text-sm text-gray-500">
-              iBizSim 连续排产规则计算器 — 基于 Excel 排产规则表的完整计算引擎
+              无双·iBizSim智能决策引擎 — 智能参数模拟与最优方案求解
             </div>
             <div className="flex items-center gap-4 text-xs text-gray-400">
               <span>产品结构 A:B:C:D = 9:6:4:3</span>

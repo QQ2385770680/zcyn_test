@@ -64,11 +64,17 @@ v0.9.1 修复自定义域名白屏问题，最终构建发布完成
     - 验证构建产物中 JS/CSS 引用路径已改为 `/assets/...`
     - 验证 wouter 路由 `BASE_PATH` 已变为空字符串
 
-3.  **重新部署**：
+3.  **移除 umami 无效引用**：
+    - `client/index.html` 中存在 `<script src="%VITE_ANALYTICS_ENDPOINT%/umami">` 引用
+    - 环境变量 `VITE_ANALYTICS_ENDPOINT` 和 `VITE_ANALYTICS_WEBSITE_ID` 未配置
+    - 构建时产生警告，生产环境中生成无效 `<script>` 标签导致浏览器请求错误资源
+    - 已从 `client/index.html` 中完全移除该脚本标签
+
+4.  **重新部署**：
     - 准备部署目录：构建产物 + `404.html` + `CNAME` + `.nojekyll`
     - 强制推送到 `gh-pages` 分支
 
-4.  **进度文件更新**：
+5.  **进度文件更新**：
     - 更新 `PROGRESS.md` 至 v0.9.1
     - 提交 `vite.config.ts` 和 `PROGRESS.md` 变更到 `main` 分支
 
@@ -87,6 +93,7 @@ v0.9.1 修复自定义域名白屏问题，最终构建发布完成
 | 文件路径 | 变更类型 | 变更说明 |
 |:---|:---|:---|
 | `ibiz-production/vite.config.ts` | 修复 | `base` 从 `'/zcyn_test/'` 改为 `'/'`，适配自定义域名 |
+| `ibiz-production/client/index.html` | 清理 | 移除未配置的 umami 分析脚本引用，消除构建警告和无效资源请求 |
 | `gh-pages` 分支 | 部署 | 使用新 base path 重新构建并部署 |
 | `PROGRESS.md` | 更新 | v0.9.1 快照 |
 

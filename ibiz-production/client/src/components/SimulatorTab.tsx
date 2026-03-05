@@ -745,6 +745,13 @@ export default function SimulatorTab() {
                     <span className="font-mono text-sm font-semibold text-gray-700">
                       总产量: {pr.periodTotal}
                     </span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); applyOptimalSingle(i); }}
+                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors"
+                    >
+                      <Wand2 className="w-3 h-3" />
+                      本期最优
+                    </button>
                   </div>
                 </button>
 
@@ -817,18 +824,6 @@ export default function SimulatorTab() {
                             <div className="font-mono font-semibold text-gray-900">{pr.maxHire}</div>
                           </div>
                         </div>
-
-                        {/* Single period optimize button */}
-                        <div className="flex items-center justify-end mb-3">
-                          <button
-                            onClick={() => applyOptimalSingle(i)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 rounded-lg hover:bg-violet-100 transition-colors"
-                          >
-                            <Wand2 className="w-3 h-3" />
-                            本期最优推荐
-                          </button>
-                        </div>
-
 
                         {/* Shift production table */}
                         <div className="overflow-x-auto">

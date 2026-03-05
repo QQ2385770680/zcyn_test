@@ -44,6 +44,7 @@ export default function HeroSection() {
                 无双
                 <span className="text-gray-400 mx-1">·</span>
                 <span className="text-emerald-600">智能决策引擎</span>
+                <span className="text-lg lg:text-xl font-medium text-amber-500 ml-2 align-middle">「测试版」</span>
               </h1>
 
               <p className="text-lg text-gray-600 max-w-xl mb-4 leading-relaxed">

@@ -400,7 +400,7 @@ export default function SimulatorTab({ onParamsChange }: SimulatorTabProps = {})
                 onChange={e => updateParam('initialMachines', Math.max(1, parseInt(e.target.value) || 1))}
                 className="w-full px-3 py-2.5 rounded-lg border border-yellow-300 bg-yellow-50/50 font-mono text-sm focus:border-yellow-400 focus:ring-2 focus:ring-yellow-100 focus:bg-white transition-all outline-none"
               />
-              <div className="text-xs text-gray-400 mt-1">默认: 157（对应 Excel 第1期本期机器）</div>
+
             </div>
 
             <div>
@@ -417,7 +417,7 @@ export default function SimulatorTab({ onParamsChange }: SimulatorTabProps = {})
                 onChange={e => updateParam('initialWorkers', Math.max(1, parseInt(e.target.value) || 1))}
                 className="w-full px-3 py-2.5 rounded-lg border border-yellow-300 bg-yellow-50/50 font-mono text-sm focus:border-yellow-400 focus:ring-2 focus:ring-yellow-100 focus:bg-white transition-all outline-none"
               />
-              <div className="text-xs text-gray-400 mt-1">默认: 113（对应 Excel 第1期期初人数）</div>
+
             </div>
 
             <div>
@@ -937,7 +937,6 @@ export default function SimulatorTab({ onParamsChange }: SimulatorTabProps = {})
                                             {constraintIcon(constraint)}
                                             <span>{constraint.value.toFixed(3)}</span>
                                           </div>
-                                          <span className="text-[9px] text-gray-400">{label}</span>
                                           {shift === 'ot2' && (
                                             <div className="text-[9px] text-violet-500 font-mono">
                                               上限:{pr.ot2_maxWorkers.toFixed(1)} 已用:{pr.ot2_usedWorkers.toFixed(1)}
@@ -973,7 +972,6 @@ export default function SimulatorTab({ onParamsChange }: SimulatorTabProps = {})
                                             {constraintIcon(constraint)}
                                             <span>{constraint.value.toFixed(3)}</span>
                                           </div>
-                                          <span className="text-[9px] text-gray-400">{label}</span>
                                           {shift === 'ot2' && (
                                             <div className="text-[9px] text-violet-500 font-mono">
                                               上限:{pr.ot2_maxMachines.toFixed(1)} 已用:{pr.ot2_usedMachines.toFixed(1)}

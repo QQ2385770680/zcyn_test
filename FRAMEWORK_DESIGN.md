@@ -73,3 +73,114 @@
 我将着手定义一个全局的 TypeScript 接口 `IBizSimDecision`，它将包含所有决策域的数据结构。我们将从已经实现的**生产决策**模块开始，逐步扩展到**市场、人力、财务、研发**等其他模块，并将这份设计实时更新到本文档中。
 
 请确认以上分析结论和下一步行动计划。如果无异议，我将开始着手设计 `IBizSimDecision` 的具体结构。
+
+## 4. 顶层数据结构设计 (v0.1)
+
+根据对官方规则和第三方决策表的分析，我设计了覆盖所有决策域的顶层 TypeScript 数据结构 `IBizSimDecision`。这份结构将作为我们系统所有模式（手动、公式、AI）的统一数据契约。
+
+```typescript
+// IBizSimDecision.ts
+
+/**
+ * @file Defines the master data structure for a single period's decision in iBizSim.
+ * @version 0.1
+ */
+
+/**
+ * Top-level interface for all decisions to be made in a single period.
+ */
+export interface IBizSimDecision {
+  meta: DecisionMeta;
+  researchAndDevelopment: ResearchAndDevelopmentDecision;
+  marketing: MarketingDecision;
+  production: ProductionDecision;
+  humanResources: HumanResourcesDecision;
+  finance: FinanceDecision;
+}
+
+/**
+ * Metadata for the decision set.
+ */
+export interface DecisionMeta {
+  period: number; // The period number (e.g., 1, 2, 3...)
+  teamId: string; // The team's unique identifier
+  gameId: string; // The game's unique identifier
+}
+
+// ---------------- Decision Domains ----------------
+
+/**
+ * R&D Decision: Investment in each product.
+ */
+export interface ResearchAndDevelopmentDecision {
+  productA: number; // Investment amount for Product A
+  productB: number; // Investment amount for Product B
+  productC: number; // Investment amount for Product C
+  productD: number; // Investment amount for Product D
+}
+
+/**
+ * Marketing Decision: Pricing, promotion, and distribution for each product in each market.
+ */
+export interface MarketingDecision {
+  productA: MarketDecisions;
+  productB: MarketDecisions;
+  productC: MarketDecisions;
+  productD: MarketDecisions;
+  advertisingInvestment: number; // Overall advertising budget
+}
+
+export interface MarketDecisions {
+  market1: MarketEntry;
+  market2: MarketEntry;
+  market3: MarketEntry;
+  market4: MarketEntry;
+}
+
+export interface MarketEntry {
+  price: number;            // Selling price
+  promotion: number;        // Promotion budget for this market
+  transportation: number;   // Units to transport to this market
+}
+
+/**
+ * Production Decision: Production schedule, machine/material purchasing.
+ */
+export interface ProductionDecision {
+  schedule: {
+    productA: ShiftProduction;
+    productB: ShiftProduction;
+    productC: ShiftProduction;
+    productD: ShiftProduction;
+  };
+  buyMachines: number;      // Number of new machines to purchase
+  buyRawMaterials: number;  // Amount of raw materials to order
+}
+
+export interface ShiftProduction {
+  shift1: number; // Units to produce in shift 1
+  shift1_overtime: number; // Units to produce in shift 1 overtime
+  shift2: number; // Units to produce in shift 2
+  shift2_overtime: number; // Units to produce in shift 2 overtime
+}
+
+/**
+ * Human Resources Decision: Hiring, firing, and salary adjustments.
+ */
+export interface HumanResourcesDecision {
+  hire: number;         // Number of new workers to hire
+  fire: number;         // Number of workers to fire
+  salaryCoefficient: number; // Salary coefficient (e.g., 1.0, 1.1)
+}
+
+/**
+ * Finance Decision: Loans, bonds, and dividends.
+ */
+export interface FinanceDecision {
+  bankLoan: number;     // Amount of bank loan to take
+  issueBonds: number;   // Amount of bonds to issue
+  buyGovBonds: number;  // Amount of government bonds to buy
+  dividend: number;     // Dividend per share to distribute
+}
+
+```

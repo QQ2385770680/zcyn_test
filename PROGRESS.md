@@ -9,8 +9,8 @@
 
 | 字段 | 值 |
 |:---|:---|
-| **快照版本** | v0.9.0 |
-| **快照时间** | 2026-03-05T07:25:00+08:00 |
+| **快照版本** | v0.9.1 |
+| **快照时间** | 2026-03-05T03:30:00+08:00 |
 | **操作账号** | QQ2385770680 |
 | **当前分支** | main |
 | **最新Commit** | 见 git log |
@@ -40,52 +40,55 @@
 - [x] **F008: 产品参数ABCD可输入变量**
 - [x] **F009: 产品参数融入模拟器内部，配合方案变化实时联动**
 - [x] **最终构建发布 (v0.9.0)**
+- [x] **修复自定义域名白屏 (v0.9.1)**
 
 ---
 
 ## 当前执行阶段（断点位置）
 
 ### 阶段名称
-v0.9.0 最终构建发布完成
+v0.9.1 修复自定义域名白屏问题，最终构建发布完成
 
 ### 已完成步骤
 
-1.  **三文件工作流读取**：
-    - 按照 SOP 严格按 `PROGRESS.md` → `TASK_CONTEXT.md` → `TASK_QUEUE.md` 顺序读取
-    - 确认所有 F001-F009 任务均已完成，项目处于 v0.8.0 状态
+1.  **问题诊断**：
+    - 绑定自定义域名 `www.wuushuang.com` 后，GitHub Pages 从根路径 `/` 提供服务
+    - 但 Vite `base` 配置为 `/zcyn_test/`，导致：
+      - JS/CSS 资源路径为 `/zcyn_test/assets/...`，在自定义域名下 404
+      - wouter 路由 `base` 为 `/zcyn_test`，访问根路径 `/` 时无法匹配路由
+    - `strict-origin-when-cross-origin` 是浏览器默认 Referrer Policy，与此问题无关
 
-2.  **依赖安装与构建**：
-    - 执行 `pnpm install`，批准 `@tailwindcss/oxide` 和 `esbuild` 构建脚本
-    - 执行 `pnpm run build`，Vite 生产构建成功
-    - 构建产物：`dist/public/index.html` (367.85 KB)、`assets/index-Mv7SmisG.js` (1,073.81 KB)、`assets/index-BIiOFy-a.css` (135.11 KB)
-    - esbuild 服务端构建成功：`dist/index.js` (788B)
+2.  **修复方案**：
+    - 将 `vite.config.ts` 中 `base` 从 `'/zcyn_test/'` 改为 `'/'`
+    - 重新执行 `pnpm run build`，构建成功
+    - 验证构建产物中 JS/CSS 引用路径已改为 `/assets/...`
+    - 验证 wouter 路由 `BASE_PATH` 已变为空字符串
 
-3.  **GitHub Pages 部署**：
-    - 准备部署目录：复制构建产物、创建 `404.html`（SPA 路由支持）、`CNAME`（www.wuushuang.com）、`.nojekyll`
-    - 强制推送到 `gh-pages` 分支，部署成功
-    - GitHub Pages 站点地址：https://www.wuushuang.com/ 或 https://qq2385770680.github.io/zcyn_test/
+3.  **重新部署**：
+    - 准备部署目录：构建产物 + `404.html` + `CNAME` + `.nojekyll`
+    - 强制推送到 `gh-pages` 分支
 
 4.  **进度文件更新**：
-    - 更新 `PROGRESS.md` 至 v0.9.0
-    - 提交并推送到 `main` 分支
+    - 更新 `PROGRESS.md` 至 v0.9.1
+    - 提交 `vite.config.ts` 和 `PROGRESS.md` 变更到 `main` 分支
 
 ### 下一步操作（恢复入口）
 
 > **恢复指令**：
 > 1. 所有功能需求（F001-F009）均已完成并部署。
-> 2. 项目处于稳定发布状态，无待执行任务。
-> 3. 如有新需求，严格遵循 `TASK_CONTEXT.md` 中定义的"AI指挥官工作流"。
-> 4. 首先读取 `TASK_QUEUE.md` 查看待执行功能需求。
-> 5. 如有新需求，先同步到 `TASK_QUEUE.md` 再执行。
+> 2. 自定义域名白屏问题已修复。
+> 3. 项目处于稳定发布状态，无待执行任务。
+> 4. 如有新需求，严格遵循 `TASK_CONTEXT.md` 中定义的"AI指挥官工作流"。
 
 ---
 
-## 文件变更摘要 (v0.9.0)
+## 文件变更摘要 (v0.9.1)
 
 | 文件路径 | 变更类型 | 变更说明 |
 |:---|:---|:---|
-| `gh-pages` 分支 | 部署 | 最终生产构建产物部署到 GitHub Pages |
-| `PROGRESS.md` | 更新 | v0.9.0 快照 - 最终构建发布 |
+| `ibiz-production/vite.config.ts` | 修复 | `base` 从 `'/zcyn_test/'` 改为 `'/'`，适配自定义域名 |
+| `gh-pages` 分支 | 部署 | 使用新 base path 重新构建并部署 |
+| `PROGRESS.md` | 更新 | v0.9.1 快照 |
 
 ---
 
@@ -93,6 +96,7 @@ v0.9.0 最终构建发布完成
 
 | 时间 | 决策 | 原因 |
 |:---|:---|:---|
+| 2026-03-05 | `base` 从 `/zcyn_test/` 改为 `/` | 绑定自定义域名后，GitHub Pages 从根路径提供服务，子路径 base 会导致资源 404 和路由不匹配 |
 | 2026-03-05 | 使用模块级 `_activeProducts` 变量而非参数传递 | engine.ts 中有60+处引用，参数传递改动量过大且容易遗漏 |
 | 2026-03-05 | 在函数入口获取局部 `MP`/`LP` 变量 | 避免在每次计算时重复调用函数，提高性能 |
 | 2026-03-05 | 产品参数面板默认折叠 | 大多数用户不需要修改产品参数，保持界面简洁 |
@@ -107,6 +111,7 @@ v0.9.0 最终构建发布完成
 
 | 快照时间 | Commit | 阶段描述 |
 |:---|:---|:---|
+| 2026-03-05 | v0.9.1 | 修复自定义域名白屏：base path 从 /zcyn_test/ 改为 / |
 | 2026-03-05 | v0.9.0 | 最终构建发布：所有功能(F001-F009)完成，部署到 GitHub Pages |
 | 2026-03-05 | v0.8.0 | F009: 产品参数融入模拟器内部，配合方案变化实时联动 |
 | 2026-03-05 | v0.7.0 | F008: 产品参数ABCD可输入变量 |

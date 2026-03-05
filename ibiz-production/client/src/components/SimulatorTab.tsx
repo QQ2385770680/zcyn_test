@@ -71,7 +71,11 @@ function constraintLabel(s: ConstraintStatus) {
   }
 }
 
-export default function SimulatorTab() {
+interface SimulatorTabProps {
+  onParamsChange?: (params: SimulatorParams) => void;
+}
+
+export default function SimulatorTab({ onParamsChange }: SimulatorTabProps = {}) {
   const [params, setParams] = useState<SimulatorParams>(getDefaultParams);
   const [compareMode, setCompareMode] = useState(true);
   const [showPerPeriod, setShowPerPeriod] = useState(false);
@@ -126,9 +130,10 @@ export default function SimulatorTab() {
         }
         next.periodConfigs = configs.slice(0, newTotal);
       }
+      onParamsChange?.(next);
       return next;
     });
-  }, []);
+  }, [onParamsChange]);
 
   const updatePeriodConfig = useCallback((index: number, updates: Partial<PeriodConfig>) => {
     setParams(prev => {
@@ -151,10 +156,12 @@ export default function SimulatorTab() {
   }, []);
 
   const resetParams = useCallback(() => {
-    setParams(getDefaultParams());
+    const defaults = getDefaultParams();
+    setParams(defaults);
     setExpandedPeriod(0);
     resetProductSpecs();
-  }, [resetProductSpecs]);
+    onParamsChange?.(defaults);
+  }, [resetProductSpecs, onParamsChange]);
 
   // 一键推荐所有期的最优排产
   const applyOptimalAll = useCallback(() => {
@@ -211,7 +218,7 @@ export default function SimulatorTab() {
         <div>
           <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <Zap className="w-5 h-5 text-amber-500" />
-            自定义参数模拟器
+            智能决策模拟
           </h2>
           <p className="text-sm text-gray-500 mt-1">
             调整参数和各期班次排产，实时验证约束条件
@@ -423,7 +430,7 @@ export default function SimulatorTab() {
                 onChange={e => updateParam('totalPeriods', Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 font-mono text-sm focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 focus:bg-white transition-all outline-none"
               />
-              <div className="text-xs text-gray-400 mt-1">默认: 9 (范围: 1-20)</div>
+              <div className="text-xs text-gray-400 mt-1">默认: 8 (范围: 1-20)</div>
             </div>
 
             <div>
@@ -561,35 +568,35 @@ export default function SimulatorTab() {
                           </select>
                         </td>
                         <td className="px-3 py-2 relative">
-                          <span className="absolute -top-0.5 right-1 text-[8px] font-bold text-orange-500">选填</span>
+                          <span className="absolute -top-0.5 right-1 text-[8px] font-bold text-cyan-500">选填</span>
                           <input
                             type="number"
                             min={0}
                             disabled={config.hireStrategy !== 'custom'}
                             value={config.customHire || 0}
                             onChange={e => updatePeriodConfig(i, { customHire: Math.max(0, parseInt(e.target.value) || 0) })}
-                            className="w-full px-2.5 py-1.5 rounded-md border border-orange-300 bg-orange-50/50 font-mono text-sm disabled:opacity-40 disabled:cursor-not-allowed focus:border-orange-400 focus:ring-1 focus:ring-orange-100 outline-none"
+                            className="w-full px-2.5 py-1.5 rounded-md border border-cyan-300 bg-cyan-50/50 font-mono text-sm disabled:opacity-40 disabled:cursor-not-allowed focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100 outline-none"
                           />
                         </td>
                         <td className="px-3 py-2 relative">
-                          <span className="absolute -top-0.5 right-1 text-[8px] font-bold text-orange-500">选填</span>
+                          <span className="absolute -top-0.5 right-1 text-[8px] font-bold text-cyan-500">选填</span>
                           <input
                             type="number"
                             min={pr ? pr.minFire : 0}
                             max={pr ? pr.maxFire : 999}
                             value={config.customFire ?? (pr ? pr.minFire : 0)}
                             onChange={e => updatePeriodConfig(i, { customFire: Math.max(0, parseInt(e.target.value) || 0) })}
-                            className="w-full px-2.5 py-1.5 rounded-md border border-orange-300 bg-orange-50/50 font-mono text-sm focus:border-orange-400 focus:ring-1 focus:ring-orange-100 outline-none"
+                            className="w-full px-2.5 py-1.5 rounded-md border border-cyan-300 bg-cyan-50/50 font-mono text-sm focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100 outline-none"
                           />
                         </td>
                         <td className="px-3 py-2 relative">
-                          <span className="absolute -top-0.5 right-1 text-[8px] font-bold text-orange-500">选填</span>
+                          <span className="absolute -top-0.5 right-1 text-[8px] font-bold text-cyan-500">选填</span>
                           <input
                             type="number"
                             min={0}
                             value={config.machinePurchase || 0}
                             onChange={e => updatePeriodConfig(i, { machinePurchase: Math.max(0, parseInt(e.target.value) || 0) })}
-                            className="w-full px-2.5 py-1.5 rounded-md border border-orange-300 bg-orange-50/50 font-mono text-sm focus:border-orange-400 focus:ring-1 focus:ring-orange-100 outline-none"
+                            className="w-full px-2.5 py-1.5 rounded-md border border-cyan-300 bg-cyan-50/50 font-mono text-sm focus:border-cyan-400 focus:ring-1 focus:ring-cyan-100 outline-none"
                           />
                         </td>
                         <td className="px-3 py-2 text-right">
@@ -869,7 +876,7 @@ export default function SimulatorTab() {
                                         <td key={shift} className="px-2 py-1.5 relative">
                                           {cellColor !== 'none' && !hasValue && (
                                             <span className={`absolute top-0.5 right-1 text-[9px] font-bold ${
-                                              cellColor === 'yellow' ? 'text-yellow-500' : 'text-orange-500'
+                                              cellColor === 'yellow' ? 'text-yellow-500' : 'text-cyan-500'
                                             }`}>
                                               {cellColor === 'yellow' ? '必填' : '选填'}
                                             </span>
@@ -907,78 +914,7 @@ export default function SimulatorTab() {
                                   {pr.periodTotal}
                                 </td>
                               </tr>
-                              {/* 可用人数行 */}
-                              <tr className="border-t border-gray-100">
-                                <td className="px-3 py-2 text-xs font-medium text-gray-500">可用人数</td>
-                                {SHIFT_NAMES.map(shift => {
-                                  let constraint: ConstraintStatus | null = null;
-                                  let label = '';
-                                  if (shift === 'shift1') { constraint = pr.availWorkers_afterShift1; label = '一班后'; }
-                                  else if (shift === 'ot1') { constraint = pr.availWorkers_afterOT1; label = '一加后'; }
-                                  else if (shift === 'shift2') { constraint = null; }
-                                  else if (shift === 'ot2') { constraint = pr.availWorkers_afterOT2; label = '二加后'; }
-                                  return (
-                                    <td key={shift} className="px-2 py-2">
-                                      {!constraint && shift === 'shift2' && (
-                                        <div className="flex items-center justify-center">
-                                          <AlertTriangle className="w-4 h-4 text-gray-300" />
-                                        </div>
-                                      )}
-                                      {constraint && (
-                                        <div className="flex flex-col items-center gap-0.5">
-                                          <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(constraint)}`}>
-                                            {constraintIcon(constraint)}
-                                            <span>{constraint.value.toFixed(3)}</span>
-                                          </div>
-                                          <span className="text-[9px] text-gray-400">{label}</span>
-                                          {shift === 'ot2' && (
-                                            <div className="text-[9px] text-violet-500 font-mono">
-                                              上限:{pr.ot2_maxWorkers.toFixed(1)} 已用:{pr.ot2_usedWorkers.toFixed(1)}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                                <td></td>
-                              </tr>
-                              {/* 可用机器行 */}
-                              <tr className="border-t border-gray-100">
-                                <td className="px-3 py-2 text-xs font-medium text-gray-500">可用机器</td>
-                                {SHIFT_NAMES.map(shift => {
-                                  let constraint: ConstraintStatus | null = null;
-                                  let label = '';
-                                  if (shift === 'shift1') { constraint = pr.availMachines_afterShift1; label = '一班后'; }
-                                  else if (shift === 'ot1') { constraint = null; }
-                                  else if (shift === 'shift2') { constraint = pr.availMachines_afterShift2; label = '二班后'; }
-                                  else if (shift === 'ot2') { constraint = pr.availMachines_afterOT2; label = '二加后'; }
-                                  return (
-                                    <td key={shift} className="px-2 py-2">
-                                      {!constraint && shift === 'ot1' && (
-                                        <div className="flex items-center justify-center">
-                                          <AlertTriangle className="w-4 h-4 text-gray-300" />
-                                        </div>
-                                      )}
-                                      {constraint && (
-                                        <div className="flex flex-col items-center gap-0.5">
-                                          <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(constraint)}`}>
-                                            {constraintIcon(constraint)}
-                                            <span>{constraint.value.toFixed(3)}</span>
-                                          </div>
-                                          <span className="text-[9px] text-gray-400">{label}</span>
-                                          {shift === 'ot2' && (
-                                            <div className="text-[9px] text-violet-500 font-mono">
-                                              上限:{pr.ot2_maxMachines.toFixed(1)} 已用:{pr.ot2_usedMachines.toFixed(1)}
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                                <td></td>
-                              </tr>
+                              {/* 可用人数和可用机器行已隐藏（布局紧凑） */}
                             </tbody>
                           </table>
                         </div>

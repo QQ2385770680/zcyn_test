@@ -1,12 +1,27 @@
 // 无双·iBizSim智能决策引擎 - 主页
 // 方案一：轻量化重构 — 仅保留参数模拟器
 
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import HeroSection from '@/components/HeroSection';
 import SimulatorTab from '@/components/SimulatorTab';
 import { ArrowUp } from 'lucide-react';
+import { type SimulatorParams, getDefaultParams } from '@/lib/engine';
 
 export default function Home() {
+  const [heroParams, setHeroParams] = useState<Pick<SimulatorParams, 'initialMachines' | 'initialWorkers' | 'totalPeriods'>>(() => {
+    const d = getDefaultParams();
+    return { initialMachines: d.initialMachines, initialWorkers: d.initialWorkers, totalPeriods: d.totalPeriods };
+  });
+
+  const handleParamsChange = useCallback((params: SimulatorParams) => {
+    setHeroParams({
+      initialMachines: params.initialMachines,
+      initialWorkers: params.initialWorkers,
+      totalPeriods: params.totalPeriods,
+    });
+  }, []);
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -14,16 +29,20 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero */}
-      <HeroSection />
+      <HeroSection
+        initialMachines={heroParams.initialMachines}
+        initialWorkers={heroParams.initialWorkers}
+        totalPeriods={heroParams.totalPeriods}
+      />
 
-      {/* Main Content — 参数模拟器 */}
+      {/* Main Content — 智能决策模拟 */}
       <main className="container py-8">
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
         >
-          <SimulatorTab />
+          <SimulatorTab onParamsChange={handleParamsChange} />
         </motion.div>
       </main>
 
@@ -39,7 +58,7 @@ export default function Home() {
               <span className="text-gray-300">|</span>
               <span>每期 520 工时</span>
               <span className="text-gray-300">|</span>
-              <span>9 期模拟</span>
+              <span>{heroParams.totalPeriods} 期模拟</span>
             </div>
           </div>
         </div>

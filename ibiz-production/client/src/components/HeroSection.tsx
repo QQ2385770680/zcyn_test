@@ -6,12 +6,22 @@ import { Factory, Cpu, Users, BarChart3, Zap } from 'lucide-react';
 
 const HERO_BG = 'https://d2xsxph8kpxj0f.cloudfront.net/310519663387422073/SbE3HkneFVVYsm7JgTXQSv/hero-bg-WjRUABE5HfUSSWXgszZMp4.webp';
 
-export default function HeroSection() {
+interface HeroSectionProps {
+  initialMachines?: number;
+  initialWorkers?: number;
+  totalPeriods?: number;
+}
+
+export default function HeroSection({
+  initialMachines = 157,
+  initialWorkers = 113,
+  totalPeriods = 8,
+}: HeroSectionProps) {
   const stats = [
-    { label: '模拟期数', value: '9期', icon: BarChart3, color: 'text-emerald-600' },
+    { label: '模拟期数', value: `${totalPeriods}期`, icon: BarChart3, color: 'text-emerald-600' },
     { label: '产品线', value: '4种', icon: Factory, color: 'text-indigo-600' },
-    { label: '初始机器', value: '157台', icon: Cpu, color: 'text-orange-500' },
-    { label: '初始工人', value: '113人', icon: Users, color: 'text-emerald-600' },
+    { label: '初始机器', value: `${initialMachines}台`, icon: Cpu, color: 'text-orange-500' },
+    { label: '初始工人', value: `${initialWorkers}人`, icon: Users, color: 'text-emerald-600' },
   ];
 
   return (
@@ -48,7 +58,7 @@ export default function HeroSection() {
               </h1>
 
               <p className="text-lg text-gray-600 max-w-xl mb-4 leading-relaxed">
-                覆盖 9 期连续排产的智能参数模拟与最优方案求解，
+                覆盖 {totalPeriods} 期连续排产的智能参数模拟与最优方案求解，
                 支持多班次产能分析、约束验证与一键优化，助力参赛团队快速制定最优生产决策。
               </p>
             </motion.div>

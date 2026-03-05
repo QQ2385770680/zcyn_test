@@ -195,7 +195,7 @@ export interface SimulatorResult {
 // ============================================================
 export function getDefaultParams(): SimulatorParams {
   const periodConfigs: PeriodConfig[] = [];
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 8; i++) {
     if (i < 3) {
       periodConfigs.push({ hireStrategy: 'max_hire', machinePurchase: 0, shiftPlan: emptyPeriodShiftPlan() });
     } else if (i === 3) {
@@ -207,7 +207,7 @@ export function getDefaultParams(): SimulatorParams {
   return {
     initialMachines: 157,
     initialWorkers: 113,
-    totalPeriods: 9,
+    totalPeriods: 8,
     fireRateMin: 0.03,
     fireRateMax: 0.10,
     hireRate: 0.50,
@@ -1099,7 +1099,7 @@ function _solveOt2Multi(
 }
 
 /**
- * 通用启发式最优排产（用于无颜色标记的期数 P6-P9）
+ * 通用启发式最优排产（用于无颜色标记的期数 P6-P8）
  * 保留原有的固定排产模式
  */
 function _optimizeShiftPlanGeneric(
@@ -1443,7 +1443,7 @@ const COLOR_MAP: Record<string, CellColor> = {
   'P5_ot2_C': 'yellow',
   'P5_shift2_D': 'yellow',
   'P5_ot2_D': 'yellow',
-  // 第6-9期：Excel 中无颜色标记（全白），不在此映射中
+  // 第6-8期：Excel 中无颜色标记（全白），不在此映射中
 };
 
 /**

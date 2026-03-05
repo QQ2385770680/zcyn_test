@@ -978,40 +978,6 @@ export default function SimulatorTab() {
                           </table>
                         </div>
 
-                        {/* Constraint summary */}
-                        <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-3">
-                          <ConstraintCard
-                            label="一班后 可用人数"
-                            desc="总可用人数 - 一正二正消耗"
-                            constraint={pr.availWorkers_afterShift1}
-                          />
-                          <ConstraintCard
-                            label="一班后 可用机器"
-                            desc="本期机器 - 一正消耗"
-                            constraint={pr.availMachines_afterShift1}
-                          />
-                          <ConstraintCard
-                            label="一加后 可用人数"
-                            desc="一正消耗人力 - 一加消耗×2"
-                            constraint={pr.availWorkers_afterOT1}
-                          />
-                          <ConstraintCard
-                            label="二班后 可用机器"
-                            desc="本期机器 - 二正消耗 - 一加消耗×2"
-                            constraint={pr.availMachines_afterShift2}
-                          />
-                          <ConstraintCard
-                            label="二加后 可用人数"
-                            desc={`二正消耗人力 - 二加消耗×2 | 上限:${pr.ot2_maxWorkers.toFixed(1)} 已用:${pr.ot2_usedWorkers.toFixed(1)}`}
-                            constraint={pr.availWorkers_afterOT2}
-                          />
-                          <ConstraintCard
-                            label="二加后 可用机器"
-                            desc={`本期机器 - 二加消耗×2 | 上限:${pr.ot2_maxMachines.toFixed(1)} 已用:${pr.ot2_usedMachines.toFixed(1)}`}
-                            constraint={pr.availMachines_afterOT2}
-                          />
-                        </div>
-
 
                         {/* P4 Hire Linkage Panel */}
                         {i === 3 && (
@@ -1245,30 +1211,4 @@ export default function SimulatorTab() {
   );
 }
 
-// 约束状态卡片组件
-function ConstraintCard({ label, desc, constraint }: {
-  label: string;
-  desc: string;
-  constraint: ConstraintStatus;
-}) {
-  return (
-    <div className={`rounded-lg px-4 py-3 border ${
-      constraint.status === 'good' ? 'border-emerald-200 bg-emerald-50/50' :
-      constraint.status === 'warning' ? 'border-amber-200 bg-amber-50/50' :
-      constraint.status === 'over' ? 'border-red-200 bg-red-50/50' :
-      'border-gray-200 bg-gray-50/50'
-    }`}>
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-700">{label}</span>
-        <span className={`flex items-center gap-1 text-xs font-medium ${constraintColor(constraint)}`}>
-          {constraintIcon(constraint)}
-          {constraintLabel(constraint)}
-        </span>
-      </div>
-      <div className="font-mono text-lg font-bold mt-1 text-gray-900">
-        {constraint.value.toFixed(3)}
-      </div>
-      <div className="text-xs text-gray-400 mt-0.5">{desc}</div>
-    </div>
-  );
-}
+

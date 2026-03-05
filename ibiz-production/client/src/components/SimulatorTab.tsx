@@ -868,7 +868,7 @@ export default function SimulatorTab({ onParamsChange }: SimulatorTabProps = {})
                                       } else if (cellColor === 'yellow') {
                                         inputStyle = 'border-yellow-400 bg-yellow-50 text-yellow-700 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-100 ring-1 ring-yellow-200';
                                       } else if (cellColor === 'orange') {
-                                        inputStyle = 'border-orange-400 bg-orange-50 text-orange-700 focus:border-orange-500 focus:ring-2 focus:ring-orange-100 ring-1 ring-orange-200';
+                                        inputStyle = 'border-cyan-400 bg-cyan-50 text-cyan-700 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 ring-1 ring-cyan-200';
                                       } else {
                                         inputStyle = 'border-gray-200 bg-gray-50/50 text-gray-300 focus:border-gray-300 focus:ring-2 focus:ring-gray-100';
                                       }

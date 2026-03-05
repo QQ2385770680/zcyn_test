@@ -1400,50 +1400,86 @@ export function batchPreviewP4Linkage(
 // ============================================================
 export type CellColor = 'yellow' | 'orange' | 'none';
 
-// 每期每班次每产品的颜色标记
+// 每期每班次每产品的颜色标记（严格对应 rule.xls 连续排产 sheet）
 // key = `P${period}_${shift}_${product}`, value = CellColor
-// 注意：产量区域中仅有黄色（必填），无橙色（选填）
-// 橙色（选填）仅出现在右侧参数区（本期购买、本期解雇、本期雇佣）
+// yellow = 黄色/金黄（必填，自己填写）
+// orange = 橙色（选填，根据内部报表填写）
+// none   = 无色（不填）
 const COLOR_MAP: Record<string, CellColor> = {
-  // 第1期（6个必填格）
+  // ===== 第1期 =====
+  // 必填（黄色）：A-一加, B-二班, B-二加, C-一班, D-一班, D-二加
   'P1_ot1_A': 'yellow',
   'P1_shift2_B': 'yellow',
   'P1_ot2_B': 'yellow',
   'P1_shift1_C': 'yellow',
   'P1_shift1_D': 'yellow',
   'P1_ot2_D': 'yellow',
-  // 第2期（7个必填格）
-  'P2_shift1_A': 'yellow',
-  'P2_ot1_A': 'yellow',
-  'P2_shift1_B': 'yellow',
-  'P2_shift2_C': 'yellow',
-  'P2_ot2_C': 'yellow',
-  'P2_shift2_D': 'yellow',
-  'P2_ot2_D': 'yellow',
-  // 第3期（8个必填格）
-  'P3_shift1_A': 'yellow',
-  'P3_ot1_A': 'yellow',
-  'P3_shift1_B': 'yellow',
+  // 选填（橙色）：A-二加
+  'P1_ot2_A': 'orange',
+
+  // ===== 第2期 =====
+  // 必填（黄色）：C-一班, C-一加, D-一班, D-一加
+  'P2_shift1_C': 'yellow',
+  'P2_ot1_C': 'yellow',
+  'P2_shift1_D': 'yellow',
+  'P2_ot1_D': 'yellow',
+  // 选填（橙色）：A-二加, D-二加
+  'P2_ot2_A': 'orange',
+  'P2_ot2_D': 'orange',
+
+  // ===== 第3期 =====
+  // 必填（黄色）：C-一班, C-一加, D-一班, D-一加
   'P3_shift1_C': 'yellow',
-  'P3_shift2_C': 'yellow',
-  'P3_ot2_C': 'yellow',
-  'P3_shift2_D': 'yellow',
-  'P3_ot2_D': 'yellow',
-  // 第4期（6个必填格）
-  'P4_shift1_A': 'yellow',
-  'P4_shift1_B': 'yellow',
-  'P4_shift2_C': 'yellow',
-  'P4_ot2_C': 'yellow',
-  'P4_shift2_D': 'yellow',
-  'P4_ot2_D': 'yellow',
-  // 第5期（6个必填格）
-  'P5_shift1_A': 'yellow',
-  'P5_shift1_B': 'yellow',
-  'P5_shift2_C': 'yellow',
-  'P5_ot2_C': 'yellow',
-  'P5_shift2_D': 'yellow',
-  'P5_ot2_D': 'yellow',
-  // 第6-8期：Excel 中无颜色标记（全白），不在此映射中
+  'P3_ot1_C': 'yellow',
+  'P3_shift1_D': 'yellow',
+  'P3_ot1_D': 'yellow',
+  // 选填（橙色）：A-二加, D-二加
+  'P3_ot2_A': 'orange',
+  'P3_ot2_D': 'orange',
+
+  // ===== 第4期 =====
+  // 必填（黄色）：C-一班, C-一加, D-一班, D-一加
+  'P4_shift1_C': 'yellow',
+  'P4_ot1_C': 'yellow',
+  'P4_shift1_D': 'yellow',
+  'P4_ot1_D': 'yellow',
+  // 选填（橙色）：A-二加, D-二加
+  'P4_ot2_A': 'orange',
+  'P4_ot2_D': 'orange',
+
+  // ===== 第5期 =====
+  // 必填（黄色）：C-一班, C-一加, D-一班, D-一加
+  'P5_shift1_C': 'yellow',
+  'P5_ot1_C': 'yellow',
+  'P5_shift1_D': 'yellow',
+  'P5_ot1_D': 'yellow',
+  // 选填（橙色）：A-二加, D-二加
+  'P5_ot2_A': 'orange',
+  'P5_ot2_D': 'orange',
+
+  // ===== 第6期 =====
+  // 必填：无
+  // 选填（橙色）：A-二加, D-二加
+  'P6_ot2_A': 'orange',
+  'P6_ot2_D': 'orange',
+
+  // ===== 第7期 =====
+  // 必填：无
+  // 选填（橙色）：A-二加, D-二加
+  'P7_ot2_A': 'orange',
+  'P7_ot2_D': 'orange',
+
+  // ===== 第8期 =====
+  // 必填：无
+  // 选填（橙色）：A-二加, D-二加
+  'P8_ot2_A': 'orange',
+  'P8_ot2_D': 'orange',
+
+  // ===== 第9期 =====
+  // 必填：无
+  // 选填（橙色）：A-二加, D-二加
+  'P9_ot2_A': 'orange',
+  'P9_ot2_D': 'orange',
 };
 
 /**

@@ -9,8 +9,8 @@
 
 | 字段 | 值 |
 |:---|:---|
-| **快照版本** | v0.8.0 |
-| **快照时间** | 2026-03-05T13:35:00+08:00 |
+| **快照版本** | v0.9.0 |
+| **快照时间** | 2026-03-05T07:25:00+08:00 |
 | **操作账号** | QQ2385770680 |
 | **当前分支** | main |
 | **最新Commit** | 见 git log |
@@ -39,53 +39,53 @@
 - [x] **F007: AI指挥官工作流更新**
 - [x] **F008: 产品参数ABCD可输入变量**
 - [x] **F009: 产品参数融入模拟器内部，配合方案变化实时联动**
+- [x] **最终构建发布 (v0.9.0)**
 
 ---
 
 ## 当前执行阶段（断点位置）
 
 ### 阶段名称
-F009 产品参数融入模拟器联动完成，等待新指令
+v0.9.0 最终构建发布完成
 
 ### 已完成步骤
 
-1.  **联动缺口分析**：
-    - 发现 `defaultResult` 的 `useMemo` 依赖为空数组 `[]`，不随 `productSpecs` 变化
-    - 产品参数面板作为独立面板存在，与全局参数面板视觉上分离
-    - 确认 `calculateProduction`、`optimizeAllPeriods`、`optimizeShiftPlan` 已通过 `_activeProducts` 正确联动
+1.  **三文件工作流读取**：
+    - 按照 SOP 严格按 `PROGRESS.md` → `TASK_CONTEXT.md` → `TASK_QUEUE.md` 顺序读取
+    - 确认所有 F001-F009 任务均已完成，项目处于 v0.8.0 状态
 
-2.  **SimulatorTab.tsx 修改**：
-    - 将产品规格参数面板从独立 `motion.div` 移入全局参数面板的 `grid` 内部
-    - 使用 `col-span-full` 占满整行，紫色虚线边框按钮展开/折叠
-    - 使用 `AnimatePresence` + `motion.div` 实现平滑展开/折叠动画
-    - 修复 `defaultResult` 依赖：现在依赖 `[productSpecs]`，对比模式下默认方案随产品参数变化更新
-    - `defaultResult` 计算时临时切换为默认产品参数，计算完成后恢复用户参数
-    - 新增 `getActiveProducts` 导入
-    - 底部提示文字改为"修改产品参数后，所有排产计算、约束验证、最优求解均实时联动更新"
+2.  **依赖安装与构建**：
+    - 执行 `pnpm install`，批准 `@tailwindcss/oxide` 和 `esbuild` 构建脚本
+    - 执行 `pnpm run build`，Vite 生产构建成功
+    - 构建产物：`dist/public/index.html` (367.85 KB)、`assets/index-Mv7SmisG.js` (1,073.81 KB)、`assets/index-BIiOFy-a.css` (135.11 KB)
+    - esbuild 服务端构建成功：`dist/index.js` (788B)
 
-3.  **构建与UI验证**：
-    - `pnpm run build` 构建成功
-    - 开发服务器启动，UI 验证通过
-    - 产品参数面板已嵌入全局参数面板内部
-    - 展开/折叠动画正常
-    - 输入框值正确，机器/单位和人力/单位自动计算正确
+3.  **GitHub Pages 部署**：
+    - 准备部署目录：复制构建产物、创建 `404.html`（SPA 路由支持）、`CNAME`（www.wuushuang.com）、`.nojekyll`
+    - 强制推送到 `gh-pages` 分支，部署成功
+    - GitHub Pages 站点地址：https://www.wuushuang.com/ 或 https://qq2385770680.github.io/zcyn_test/
+
+4.  **进度文件更新**：
+    - 更新 `PROGRESS.md` 至 v0.9.0
+    - 提交并推送到 `main` 分支
 
 ### 下一步操作（恢复入口）
 
 > **恢复指令**：
-> 1. 严格遵循 `TASK_CONTEXT.md` 中定义的"AI指挥官工作流"。
-> 2. 首先读取 `TASK_QUEUE.md` 查看待执行功能需求。
-> 3. 如有新需求，先同步到 `TASK_QUEUE.md` 再执行。
+> 1. 所有功能需求（F001-F009）均已完成并部署。
+> 2. 项目处于稳定发布状态，无待执行任务。
+> 3. 如有新需求，严格遵循 `TASK_CONTEXT.md` 中定义的"AI指挥官工作流"。
+> 4. 首先读取 `TASK_QUEUE.md` 查看待执行功能需求。
+> 5. 如有新需求，先同步到 `TASK_QUEUE.md` 再执行。
 
 ---
 
-## 文件变更摘要 (v0.8.0)
+## 文件变更摘要 (v0.9.0)
 
 | 文件路径 | 变更类型 | 变更说明 |
 |:---|:---|:---|
-| `ibiz-production/client/src/components/SimulatorTab.tsx` | 重构 | 产品参数面板从独立区域移入全局参数面板内部；`defaultResult` 依赖 `productSpecs`；新增 `AnimatePresence` 动画 |
-| `TASK_QUEUE.md` | 更新 | 新增 F008 任务记录并标记为已完成 |
-| `PROGRESS.md` | 更新 | v0.8.0 快照 |
+| `gh-pages` 分支 | 部署 | 最终生产构建产物部署到 GitHub Pages |
+| `PROGRESS.md` | 更新 | v0.9.0 快照 - 最终构建发布 |
 
 ---
 
@@ -98,6 +98,8 @@ F009 产品参数融入模拟器联动完成，等待新指令
 | 2026-03-05 | 产品参数面板默认折叠 | 大多数用户不需要修改产品参数，保持界面简洁 |
 | 2026-03-05 | `defaultResult` 计算时临时切换产品参数 | 确保对比模式始终使用默认参数计算，避免对比基准随用户修改而变化 |
 | 2026-03-05 | 产品参数面板嵌入全局参数面板 | 视觉上属于同一个配置区域，用户更容易理解参数之间的联动关系 |
+| 2026-03-05 | 部署时创建 404.html 与 index.html 相同 | GitHub Pages SPA 路由支持，确保刷新页面时不会 404 |
+| 2026-03-05 | 添加 .nojekyll 文件 | 防止 GitHub Pages 使用 Jekyll 处理静态文件，避免下划线开头的目录被忽略 |
 
 ---
 
@@ -105,6 +107,7 @@ F009 产品参数融入模拟器联动完成，等待新指令
 
 | 快照时间 | Commit | 阶段描述 |
 |:---|:---|:---|
+| 2026-03-05 | v0.9.0 | 最终构建发布：所有功能(F001-F009)完成，部署到 GitHub Pages |
 | 2026-03-05 | v0.8.0 | F009: 产品参数融入模拟器内部，配合方案变化实时联动 |
 | 2026-03-05 | v0.7.0 | F008: 产品参数ABCD可输入变量 |
 | 2026-03-05 | v0.6.0 | F007: AI指挥官工作流更新，固化三文件SOP |

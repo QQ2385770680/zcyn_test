@@ -660,6 +660,25 @@ export default function SimulatorTab() {
             </span>
           </div>
         </div>
+        {/* Color legend - 统一显示一次，严格对应 Excel 颜色 */}
+        <div className="px-6 py-3 border-b border-gray-100 flex items-center gap-4 text-xs">
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded border-2 border-yellow-400 bg-yellow-50"></span>
+            <span className="text-gray-600">黄格 = 必填</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded border-2 border-orange-400 bg-orange-50"></span>
+            <span className="text-gray-600">橙格 = 选填</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded border-2 border-sky-400 bg-sky-50"></span>
+            <span className="text-gray-600">蓝格 = 公式</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 h-4 rounded border border-gray-200 bg-gray-50/50"></span>
+            <span className="text-gray-400">灰色 = 不填</span>
+          </span>
+        </div>
 
         <div className="divide-y divide-gray-50">
           {result.periods.map((pr, i) => {
@@ -810,25 +829,6 @@ export default function SimulatorTab() {
                           </button>
                         </div>
 
-                        {/* Color legend - 严格对应 Excel 颜色 */}
-                        <div className="flex items-center gap-4 mb-2 text-xs">
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-4 h-4 rounded border-2 border-yellow-400 bg-yellow-50"></span>
-                            <span className="text-gray-600">黄格 = 必填</span>
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-4 h-4 rounded border-2 border-orange-400 bg-orange-50"></span>
-                            <span className="text-gray-600">橙格 = 选填</span>
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-4 h-4 rounded border-2 border-sky-400 bg-sky-50"></span>
-                            <span className="text-gray-600">蓝格 = 公式</span>
-                          </span>
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-4 h-4 rounded border border-gray-200 bg-gray-50/50"></span>
-                            <span className="text-gray-400">灰色 = 不填</span>
-                          </span>
-                        </div>
 
                         {/* Shift production table */}
                         <div className="overflow-x-auto">
@@ -943,12 +943,6 @@ export default function SimulatorTab() {
                                           )}
                                         </div>
                                       )}
-                                      {shift === 'shift2' && (
-                                        <div className="flex flex-col items-center gap-0.5">
-                                          <div className="w-full px-2 py-1 rounded-md text-xs text-center bg-gray-100 text-gray-400 border border-dashed border-gray-300">禁区</div>
-                                          <span className="text-[9px] text-gray-400">Excel暗色</span>
-                                        </div>
-                                      )}
                                     </td>
                                     <td className="px-2 py-2">
                                       {machineConstraint && (
@@ -963,12 +957,6 @@ export default function SimulatorTab() {
                                               上限:{pr.ot2_maxMachines.toFixed(1)} 已用:{pr.ot2_usedMachines.toFixed(1)}
                                             </div>
                                           )}
-                                        </div>
-                                      )}
-                                      {shift === 'shift2' && (
-                                        <div className="flex flex-col items-center gap-0.5">
-                                          <div className="w-full px-2 py-1 rounded-md text-xs text-center bg-gray-100 text-gray-400 border border-dashed border-gray-300">禁区</div>
-                                          <span className="text-[9px] text-gray-400">Excel暗色</span>
                                         </div>
                                       )}
                                     </td>
@@ -1029,21 +1017,6 @@ export default function SimulatorTab() {
                           />
                         </div>
 
-                        {/* Tips for period 1 */}
-                        {i === 0 && (
-                          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100">
-                            <h4 className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-1.5">
-                              <Info className="w-4 h-4" />
-                              第一期排产参考
-                            </h4>
-                            <div className="text-xs text-blue-700 space-y-1">
-                              <p>第一班：C、D产品，产量100~250，目标一班可用机器接近0</p>
-                              <p>第二班：B产品，产量100~250，目标一班可用人数接近0</p>
-                              <p>一加班：A产品，产量200~300，目标二班可用机器接近0</p>
-                              <p>二加班：D产品40+适当加B产品，目标二加可用机器最小</p>
-                            </div>
-                          </div>
-                        )}
 
                         {/* P4 Hire Linkage Panel */}
                         {i === 3 && (

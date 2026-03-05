@@ -919,6 +919,11 @@ export default function SimulatorTab() {
                                   else if (shift === 'ot2') { constraint = pr.availWorkers_afterOT2; label = '二加后'; }
                                   return (
                                     <td key={shift} className="px-2 py-2">
+                                      {!constraint && shift === 'shift2' && (
+                                        <div className="flex items-center justify-center">
+                                          <AlertTriangle className="w-4 h-4 text-gray-300" />
+                                        </div>
+                                      )}
                                       {constraint && (
                                         <div className="flex flex-col items-center gap-0.5">
                                           <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(constraint)}`}>
@@ -945,11 +950,16 @@ export default function SimulatorTab() {
                                   let constraint: ConstraintStatus | null = null;
                                   let label = '';
                                   if (shift === 'shift1') { constraint = pr.availMachines_afterShift1; label = '一班后'; }
-                                  else if (shift === 'ot1') { constraint = pr.availMachines_afterShift2; label = '二班后'; }
-                                  else if (shift === 'shift2') { constraint = null; }
+                                  else if (shift === 'ot1') { constraint = null; }
+                                  else if (shift === 'shift2') { constraint = pr.availMachines_afterShift2; label = '二班后'; }
                                   else if (shift === 'ot2') { constraint = pr.availMachines_afterOT2; label = '二加后'; }
                                   return (
                                     <td key={shift} className="px-2 py-2">
+                                      {!constraint && shift === 'ot1' && (
+                                        <div className="flex items-center justify-center">
+                                          <AlertTriangle className="w-4 h-4 text-gray-300" />
+                                        </div>
+                                      )}
                                       {constraint && (
                                         <div className="flex flex-col items-center gap-0.5">
                                           <div className={`flex items-center justify-center gap-1 px-2 py-1 rounded-md text-xs font-mono ${constraintColor(constraint)}`}>

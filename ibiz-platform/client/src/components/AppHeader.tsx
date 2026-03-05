@@ -1,6 +1,6 @@
 /**
- * AppHeader — 顶部状态栏
- * 设计风格：简洁白色，左侧面包屑，右侧用户操作
+ * AppHeader — 用户面板顶部状态栏
+ * 注意：nest 模式下 useLocation 返回相对路径（不含 /dashboard 前缀）
  */
 import React from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Shield } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useLocation } from "wouter";
 
+// nest 模式下路径是相对的
 const routeLabels: Record<string, string> = {
   "/": "首页",
   "/config": "全局配置",
@@ -27,16 +28,13 @@ const routeLabels: Record<string, string> = {
   "/production/designer": "方案设计器",
   "/production/plans": "我的方案",
   "/marketplace": "方案市场",
-  "/admin": "管理后台",
-  "/admin/users": "用户管理",
-  "/admin/plans": "方案管理",
-  "/admin/settings": "系统设置",
 };
 
 function getBreadcrumbs(path: string) {
   if (path === "/") return [{ label: "首页", path: "/" }];
-  const segments = path.split("/").filter(Boolean);
   const crumbs: { label: string; path: string }[] = [{ label: "首页", path: "/" }];
+
+  const segments = path.split("/").filter(Boolean);
   let currentPath = "";
   for (const seg of segments) {
     currentPath += `/${seg}`;
@@ -85,15 +83,6 @@ export function AppHeader() {
         </Badge>
         <Button variant="ghost" size="icon-sm" className="text-muted-foreground">
           <Bell className="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground gap-1.5"
-          onClick={() => setLocation("/admin")}
-        >
-          <Shield className="size-3.5" />
-          <span className="text-xs">管理</span>
         </Button>
       </div>
     </header>

@@ -1,7 +1,7 @@
 /**
- * Home — 仪表盘首页
+ * Home — 用户仪表盘首页
  * 设计风格：延续 wuushuang.com 的清新明亮风格
- * Hero 区域有彩色气泡装饰，统计卡片，快速入口
+ * 注意：nest 模式下 setLocation 使用相对路径
  */
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,6 @@ import {
   Zap,
 } from "lucide-react";
 import { useLocation } from "wouter";
-
-const HERO_BG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663403757498/RaCdpGyRXNjqePJ4BxaiAj/hero-bg-jGe3286KA2gszU4Y8s5zN9.webp";
 
 export default function Home() {
   const [, setLocation] = useLocation();

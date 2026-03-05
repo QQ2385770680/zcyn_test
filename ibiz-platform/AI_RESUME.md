@@ -10,7 +10,7 @@
 
 **项目定位**：为 iBizSim 企业竞争模拟大赛参赛团队提供智能决策辅助工具，覆盖生产决策域的参数模拟、约束验证与最优方案求解。
 
-**技术栈**：React 19 + Tailwind CSS 4 + shadcn/ui + Wouter 路由 + Vite
+**技术栈**：React 19 + Tailwind CSS 4 + shadcn/ui + Wouter 路由（nest 模式） + Vite
 
 **设计风格**：延续 [wuushuang.com](https://www.wuushuang.com/) 的清新简洁风格 — 纯白背景、翠绿主色调（emerald-600）、彩色气泡装饰、功能色彩编码、卡片式布局、轻量边框、微妙阴影。
 
@@ -35,7 +35,7 @@ cd zcyn_test/ibiz-platform
 /home/ubuntu/ibiz-platform
 ```
 
-该项目通过 `webdev_init_project` 初始化，项目名 `ibiz-platform`，初始检查点版本 `f2b67789`。
+该项目通过 `webdev_init_project` 初始化，项目名 `ibiz-platform`。
 
 ---
 
@@ -64,48 +64,74 @@ pnpm run dev
 | `tsconfig.json` | TypeScript 配置 |
 | `client/index.html` | HTML 入口，已配置 Noto Sans SC 字体 |
 | `client/src/index.css` | 全局样式 + 主题变量（清新绿色主题） |
-| `client/src/App.tsx` | 路由配置入口 |
+| `client/src/App.tsx` | 路由配置入口（三层路由架构） |
 
 ---
 
-## 四、当前项目状态（截至 2026-03-05）
+## 四、当前项目状态（截至 2026-03-05 阶段三）
 
-### 4.1 已完成的功能模块
+### 4.1 路由架构
 
-| 模块 | 文件路径 | 状态 | 说明 |
-|------|----------|------|------|
-| 全局样式 | `client/src/index.css` | 已完成 | 清新绿色主题，OKLCH 色值，气泡装饰样式 |
-| 字体配置 | `client/index.html` | 已完成 | Google Fonts Noto Sans SC |
-| 主布局 | `client/src/components/DashboardLayout.tsx` | 已完成 | SidebarProvider + SidebarInset 包裹 |
-| 侧边栏 | `client/src/components/AppSidebar.tsx` | 已完成 | 品牌标识 + 系统配置 + 决策域(仅生产) + 市场 + 用户 |
-| 顶部栏 | `client/src/components/AppHeader.tsx` | 已完成 | 面包屑导航 + 测试版标签 + 通知 + 管理入口 |
-| 决策域布局 | `client/src/components/DecisionDomainLayout.tsx` | 已完成 | 三标签页通用布局（模拟器/方案设计器/我的方案） |
-| 首页 | `client/src/pages/Home.tsx` | 已完成 | Hero区(气泡装饰) + 统计卡片 + 快速入口 + 最近活动 |
-| 全局配置 | `client/src/pages/GlobalConfig.tsx` | 已完成 | 基础参数(机器/工人/期数) + 人力资源参数(Slider) |
-| 初始数据 | `client/src/pages/InitialData.tsx` | 已完成 | 产品参数表 + 机器参数表 + 成本参数网格 |
-| 生产决策入口 | `client/src/pages/Production.tsx` | 已完成 | 路由入口，引用三个子组件 |
-| 生产模拟器 | `client/src/components/production/Simulator.tsx` | 已完成 | 期数选择 + 利用率卡片 + 排产表(可编辑) + 约束验证 |
-| 方案设计器 | `client/src/components/production/Designer.tsx` | 已完成 | 基本信息 + 优化目标 + 约束条件(Switch) + 一键优化 |
-| 我的方案 | `client/src/components/production/Plans.tsx` | 已完成 | 方案卡片网格 + 搜索 + 排序 + 新建 |
-| 方案市场 | `client/src/pages/Marketplace.tsx` | 已完成 | 市场方案卡片 + PRO标签 + 搜索筛选 |
-| 管理后台 | `client/src/pages/Admin.tsx` | 已完成 | 统计卡片 + 用户管理表 + 方案管理表 + 系统设置 |
-| 路由配置 | `client/src/App.tsx` | 已完成 | 7条路由全部注册 |
-| Toast 修复 | `client/src/components/ui/sonner.tsx` | 已完成 | 移除 next-themes 依赖 |
+项目使用 **wouter nest 模式**实现三层路由：
 
-### 4.2 路由清单
+**公共路由**（无需登录，已登录用户访问 `/`、`/login`、`/register` 会重定向到 `/dashboard`）：
 
-| 路由 | 页面 | 验证状态 |
-|------|------|----------|
-| `/` | 首页仪表盘 | 已验证通过 |
-| `/config` | 全局配置 | 已验证通过 |
-| `/initial-data` | 初始数据 | 已验证通过 |
-| `/production/simulator` | 生产模拟器 | 已验证通过 |
-| `/production/designer` | 方案设计器 | 已验证通过 |
-| `/production/plans` | 我的方案 | 已验证通过 |
-| `/marketplace` | 方案市场 | 已验证通过 |
-| `/admin` | 管理后台 | 已验证通过 |
+| 路径 | 页面 | 文件 |
+|------|------|------|
+| `/` | 网站主页 Landing | `pages/Landing.tsx` |
+| `/login` | 用户登录 | `pages/Login.tsx` |
+| `/register` | 用户注册 | `pages/Register.tsx` |
+| `/admin/login` | 管理员登录 | `pages/AdminLogin.tsx` |
 
-### 4.3 已知问题
+**用户路由**（需用户登录，未登录重定向到 `/login`）：
+
+| 路径 | 页面 | 文件 |
+|------|------|------|
+| `/dashboard` | 用户仪表盘 | `pages/Home.tsx` |
+| `/dashboard/config` | 全局配置 | `pages/GlobalConfig.tsx` |
+| `/dashboard/initial-data` | 初始数据 | `pages/InitialData.tsx` |
+| `/dashboard/production/simulator` | 生产模拟器 | `pages/Production.tsx` → `components/production/Simulator.tsx` |
+| `/dashboard/production/designer` | 方案设计器 | `pages/Production.tsx` → `components/production/Designer.tsx` |
+| `/dashboard/production/plans` | 我的方案 | `pages/Production.tsx` → `components/production/Plans.tsx` |
+| `/dashboard/marketplace` | 方案市场 | `pages/Marketplace.tsx` |
+
+**管理员路由**（需管理员登录，非管理员重定向到 `/`）：
+
+| 路径 | 页面 | 文件 |
+|------|------|------|
+| `/admin` | 管理概览 | `pages/admin/Overview.tsx` |
+| `/admin/users` | 用户管理 | `pages/admin/UserManagement.tsx` |
+| `/admin/plans` | 方案管理 | `pages/admin/PlanManagement.tsx` |
+| `/admin/settings` | 系统设置 | `pages/admin/SystemSettings.tsx` |
+
+### 4.2 认证系统
+
+认证使用 `AuthContext`（`contexts/AuthContext.tsx`），当前为 **Mock 实现**：
+
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| AuthContext | `contexts/AuthContext.tsx` | 提供 login/register/logout/user 状态，Mock 用户存储在 localStorage |
+| ProtectedRoute | `components/RouteGuards.tsx` | 用户路由守卫，未登录跳转 `/login` |
+| AdminRoute | `components/RouteGuards.tsx` | 管理员路由守卫，非管理员跳转 `/` |
+| PublicOnlyRoute | `components/RouteGuards.tsx` | 公共路由守卫，已登录跳转 `/dashboard` |
+
+**演示账号**：
+
+| 角色 | 邮箱 | 密码 |
+|------|------|------|
+| 管理员 | admin@ibiz.com | admin123 |
+| 普通用户 | user@ibiz.com | user123 |
+| 演示用户 | demo@ibiz.com | demo123 |
+
+### 4.3 wouter nest 模式注意事项
+
+App.tsx 中使用了 wouter 的 `nest` 属性来实现路由前缀。**在 nest 模式下，`useLocation()` 返回的是相对路径**（剥离了前缀）。因此：
+
+- 在 `/dashboard` nest 内部，`useLocation()` 返回 `/` 而不是 `/dashboard`
+- 侧边栏、面包屑中的路径比较和跳转使用相对路径（如 `/config` 而非 `/dashboard/config`）
+- 跨 nest 跳转（如从 dashboard 退出登录跳到 `/login`）需使用 `window.location.href`
+
+### 4.4 已知问题
 
 目前所有页面均使用**静态 Mock 数据**，尚未接入真实数据源或计算逻辑。所有交互按钮（保存、优化、删除等）仅有前端 UI，无实际后端功能。
 
@@ -119,12 +145,13 @@ ibiz-platform/
 │   ├── index.html                          # HTML 入口
 │   ├── public/                             # 静态资源
 │   └── src/
-│       ├── App.tsx                          # 路由配置
+│       ├── App.tsx                          # 路由配置（三层架构）
 │       ├── main.tsx                         # React 入口
 │       ├── index.css                        # 全局样式 + 主题
 │       ├── const.ts                         # 客户端常量
 │       ├── contexts/
-│       │   └── ThemeContext.tsx             # 主题上下文
+│       │   ├── ThemeContext.tsx             # 主题上下文
+│       │   └── AuthContext.tsx             # 认证上下文（Mock）
 │       ├── hooks/
 │       │   ├── useComposition.ts
 │       │   ├── useMobile.tsx
@@ -132,61 +159,47 @@ ibiz-platform/
 │       ├── lib/
 │       │   └── utils.ts                    # 工具函数 (cn)
 │       ├── pages/
-│       │   ├── Home.tsx                    # 首页仪表盘
-│       │   ├── GlobalConfig.tsx            # 全局配置
-│       │   ├── InitialData.tsx             # 初始数据
-│       │   ├── Production.tsx              # 生产决策入口
-│       │   ├── Marketplace.tsx             # 方案市场
-│       │   ├── Admin.tsx                   # 管理后台
-│       │   └── NotFound.tsx                # 404 页面
+│       │   ├── Landing.tsx                # 网站主页
+│       │   ├── Login.tsx                  # 用户登录
+│       │   ├── Register.tsx               # 用户注册
+│       │   ├── AdminLogin.tsx             # 管理员登录
+│       │   ├── Home.tsx                   # 用户仪表盘
+│       │   ├── GlobalConfig.tsx           # 全局配置
+│       │   ├── InitialData.tsx            # 初始数据
+│       │   ├── Production.tsx             # 生产决策入口
+│       │   ├── Marketplace.tsx            # 方案市场
+│       │   ├── NotFound.tsx               # 404 页面
+│       │   └── admin/
+│       │       ├── Overview.tsx           # 管理概览
+│       │       ├── UserManagement.tsx     # 用户管理
+│       │       ├── PlanManagement.tsx     # 方案管理
+│       │       └── SystemSettings.tsx     # 系统设置
 │       └── components/
-│           ├── DashboardLayout.tsx          # 主布局
-│           ├── AppSidebar.tsx              # 侧边栏
-│           ├── AppHeader.tsx               # 顶部栏
-│           ├── DecisionDomainLayout.tsx     # 决策域通用布局
+│           ├── DashboardLayout.tsx         # 用户主布局
+│           ├── AdminLayout.tsx            # 管理员布局
+│           ├── AppSidebar.tsx             # 用户侧边栏
+│           ├── AppHeader.tsx              # 用户顶部栏
+│           ├── DecisionDomainLayout.tsx    # 决策域通用布局
+│           ├── RouteGuards.tsx            # 路由守卫组件
 │           ├── production/
-│           │   ├── Simulator.tsx           # 生产模拟器
-│           │   ├── Designer.tsx            # 方案设计器
-│           │   └── Plans.tsx              # 我的方案
-│           └── ui/                         # shadcn/ui 组件库
-│               ├── accordion.tsx
-│               ├── avatar.tsx
-│               ├── badge.tsx
-│               ├── breadcrumb.tsx
-│               ├── button.tsx
-│               ├── card.tsx
-│               ├── chart.tsx
-│               ├── dialog.tsx
-│               ├── dropdown-menu.tsx
-│               ├── input.tsx
-│               ├── label.tsx
-│               ├── progress.tsx
-│               ├── scroll-area.tsx
-│               ├── select.tsx
-│               ├── separator.tsx
-│               ├── sidebar.tsx
-│               ├── slider.tsx
-│               ├── sonner.tsx
-│               ├── switch.tsx
-│               ├── table.tsx
-│               ├── tabs.tsx
-│               ├── textarea.tsx
-│               ├── tooltip.tsx
-│               └── ... (更多 UI 组件)
+│           │   ├── Simulator.tsx          # 生产模拟器
+│           │   ├── Designer.tsx           # 方案设计器
+│           │   └── Plans.tsx             # 我的方案
+│           └── ui/                        # shadcn/ui 组件库
+│               └── ... (30+ 组件)
 ├── server/
 │   └── index.ts                            # 占位文件（静态项目无后端）
 ├── shared/
 │   └── const.ts                            # 共享常量
-├── design-notes.md                         # wuushuang.com 设计风格笔记
-├── ideas.md                                # 设计方案构思
+├── todo.md                                 # 任务清单（含优先级）
 ├── PROGRESS.md                             # 开发进度记录
 ├── AI_RESUME.md                            # 本文件 — 恢复指令
+├── design-notes.md                         # wuushuang.com 设计风格笔记
+├── ideas.md                                # 设计方案构思
 ├── verification-notes.md                   # 页面验证记录
 ├── vite.config.ts
 ├── tsconfig.json
-├── tsconfig.node.json
-├── package.json
-└── pnpm-lock.yaml
+└── package.json
 ```
 
 ---
@@ -206,11 +219,7 @@ ibiz-platform/
 | 背景 | 纯白 | `white` / `gray-50/50` |
 | 文字 | 深灰 | `gray-900` (标题) / `gray-500` (描述) / `gray-400` (辅助) |
 
-### 6.2 组件使用约定
-
-所有 UI 组件从 `@/components/ui/*` 导入。自定义业务组件放在 `@/components/` 或 `@/components/production/`。页面组件放在 `@/pages/`。
-
-### 6.3 关键设计原则
+### 6.2 关键设计原则
 
 设计延续 wuushuang.com 风格：纯白背景不使用深色模式，卡片使用 `border-gray-100` 轻量边框，hover 时添加 `shadow-md` 和 `-translate-y-0.5` 微动效，Badge 使用对应功能色的 50/200 色阶组合，空状态使用虚线边框 `border-dashed` 卡片。
 
@@ -218,55 +227,49 @@ ibiz-platform/
 
 ## 七、下一步任务清单
 
-### 7.1 优先级 P0 — 核心功能实现
+详细清单请参阅 `todo.md`，以下为摘要：
 
-以下任务是将 UI 原型转化为可用产品的关键步骤：
+### P0 — 核心功能
 
 | 任务 | 涉及文件 | 说明 |
 |------|----------|------|
-| 接入生产决策计算引擎 | `production/Simulator.tsx` | 将 Mock 数据替换为真实的排产计算逻辑，参考 `RULE_FORMULAS.md` 和 `SOLVER_ALGORITHM.md` |
-| 实现约束验证逻辑 | `production/Simulator.tsx` | 根据工人/机器/加班约束实时验证排产方案 |
-| 实现方案 CRUD | `production/Plans.tsx`, `production/Designer.tsx` | 方案的创建、保存、复制、删除（可用 localStorage 或升级后端） |
-| 全局配置持久化 | `GlobalConfig.tsx` | 配置参数的保存和读取（localStorage 或 Context） |
-| 初始数据可编辑 | `InitialData.tsx` | 允许用户修改初始数据参数 |
+| 生产决策计算引擎 | `production/Simulator.tsx` | 将 Mock 数据替换为真实排产计算逻辑 |
+| 约束验证逻辑 | `production/Simulator.tsx` | 工人/机器/加班约束实时验证 |
+| 方案 CRUD | `production/Plans.tsx`, `Designer.tsx` | 方案创建、保存、复制、删除 |
+| 全局配置持久化 | `GlobalConfig.tsx` | 配置参数保存到 localStorage |
 
-### 7.2 优先级 P1 — 功能增强
-
-| 任务 | 说明 |
-|------|------|
-| 添加图表可视化 | 使用 Recharts（已有 `chart.tsx` 组件）展示产能、利润、成本趋势 |
-| 实现一键优化求解 | 集成线性规划求解器（可用 `javascript-lp-solver` 或后端 API） |
-| 方案对比功能 | 支持选择多个方案进行横向对比 |
-| 数据导入导出 | 支持 Excel/CSV 格式的数据导入导出 |
-
-### 7.3 优先级 P2 — 体验优化
+### P1 — 功能增强
 
 | 任务 | 说明 |
 |------|------|
-| 升级为全栈项目 | 使用 `webdev_add_feature("web-db-user")` 添加后端和数据库 |
-| 用户认证 | 接入 Manus OAuth 实现用户登录 |
-| 方案市场真实数据 | 接入后端 API 实现方案的发布和获取 |
-| 响应式优化 | 优化移动端布局体验 |
-| 动画增强 | 添加页面切换和组件进入动画 |
+| 图表可视化 | 使用 Recharts 展示产能、利润、成本趋势 |
+| 一键优化求解 | 集成线性规划求解器 |
+| 方案对比 | 多方案横向对比 |
+
+### P2 — 后端集成
+
+| 任务 | 说明 |
+|------|------|
+| 升级全栈 | `webdev_add_feature("web-db-user")` |
+| 真实认证 | 替换 Mock AuthContext |
+| 数据库 | 方案/配置/用户数据持久化 |
 
 ---
 
 ## 八、相关文档索引
 
-以下文档位于 GitHub 仓库 `QQ2385770680/zcyn_test` 的根目录：
+以下文档位于 GitHub 仓库 `QQ2385770680/zcyn_test`：
 
-| 文档 | 说明 |
-|------|------|
-| `TASK_CONTEXT.md` | 项目背景和需求上下文 |
-| `RULE_FORMULAS.md` | iBizSim 竞赛规则和计算公式 |
-| `SOLVER_ALGORITHM.md` | 求解算法设计文档 |
-| `FRAMEWORK_DESIGN.md` | 系统框架设计文档 |
-| `TASK_QUEUE.md` | 任务队列和优先级 |
-| `PROGRESS.md`（根目录） | 全局项目进度 |
-| `ibiz-platform/PROGRESS.md` | 前端项目进度 |
-| `ibiz-platform/AI_RESUME.md` | 本文件 |
-| `ibiz-platform/design-notes.md` | 视觉设计参考笔记 |
-| `ibiz-platform/ideas.md` | 设计方案构思记录 |
+| 文档 | 位置 | 说明 |
+|------|------|------|
+| `TASK_CONTEXT.md` | 根目录 | 项目背景和需求上下文 |
+| `RULE_FORMULAS.md` | 根目录 | iBizSim 竞赛规则和计算公式 |
+| `SOLVER_ALGORITHM.md` | 根目录 | 求解算法设计文档 |
+| `FRAMEWORK_DESIGN.md` | 根目录 | 系统框架设计文档 |
+| `TASK_QUEUE.md` | 根目录 | 任务队列和优先级 |
+| `todo.md` | ibiz-platform/ | 详细任务清单（含优先级） |
+| `PROGRESS.md` | ibiz-platform/ | 前端项目进度 |
+| `AI_RESUME.md` | ibiz-platform/ | 本文件 |
 
 ---
 
@@ -286,7 +289,8 @@ gh repo clone QQ2385770680/zcyn_test
 1. `zcyn_test/TASK_CONTEXT.md` — 了解项目背景
 2. `zcyn_test/RULE_FORMULAS.md` — 了解竞赛规则
 3. `zcyn_test/ibiz-platform/AI_RESUME.md` — 本文件，了解前端项目状态
-4. `zcyn_test/ibiz-platform/PROGRESS.md` — 了解开发进度
+4. `zcyn_test/ibiz-platform/todo.md` — 了解任务清单和优先级
+5. `zcyn_test/ibiz-platform/PROGRESS.md` — 了解开发进度
 
 **第三步：搭建环境（如在 Manus 沙箱中）**
 
@@ -303,12 +307,27 @@ pnpm run dev
 
 **第四步：确认页面正常**
 
-在浏览器中访问 `http://localhost:3000/`，验证以下路由均可正常访问：`/`、`/config`、`/initial-data`、`/production/simulator`、`/production/designer`、`/production/plans`、`/marketplace`、`/admin`。
+在浏览器中访问 `http://localhost:3000/`，应看到 Landing 页面。使用演示账号 `user@ibiz.com / user123` 登录后验证 `/dashboard` 及子路由。使用 `admin@ibiz.com / admin123` 在 `/admin/login` 登录验证管理后台。
 
 **第五步：继续开发**
 
-参照本文件第七节「下一步任务清单」，按优先级继续开发。
+参照 `todo.md` 中的任务清单，按优先级继续开发。完成每个小阶段后：
+1. 更新 `todo.md` 标记已完成项
+2. 更新 `PROGRESS.md` 记录进度
+3. 更新 `AI_RESUME.md` 中的项目状态
+4. 备份代码到 GitHub：
+```bash
+cd /home/ubuntu/zcyn_test
+rm -rf ibiz-platform/client ibiz-platform/server ibiz-platform/shared
+cp -r /home/ubuntu/ibiz-platform/client /home/ubuntu/zcyn_test/ibiz-platform/
+cp -r /home/ubuntu/ibiz-platform/server /home/ubuntu/zcyn_test/ibiz-platform/
+cp -r /home/ubuntu/ibiz-platform/shared /home/ubuntu/zcyn_test/ibiz-platform/
+cp /home/ubuntu/ibiz-platform/*.md /home/ubuntu/zcyn_test/ibiz-platform/
+cp /home/ubuntu/ibiz-platform/*.json /home/ubuntu/zcyn_test/ibiz-platform/
+cp /home/ubuntu/ibiz-platform/*.ts /home/ubuntu/zcyn_test/ibiz-platform/
+git add -A && git commit -m "阶段N：xxx" && git push
+```
 
 ---
 
-**最后更新**：2026-03-05 by AI 指挥官（阶段二验证完成后）
+**最后更新**：2026-03-05 by AI 指挥官（阶段三路由重构完成后）

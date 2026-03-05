@@ -1,7 +1,7 @@
 /**
- * AppSidebar — iBizSim 主侧边栏导航
- * 设计风格：清新简洁，白色背景，翠绿强调色（延续 wuushuang.com）
- * 导航分组：全局配置、初始数据、生产决策（唯一决策域）、方案市场
+ * AppSidebar — iBizSim 用户侧边栏导航
+ * 设计风格：清新简洁，白色背景，翠绿强调色
+ * 注意：在 nest 模式下，useLocation 返回相对路径（不含 /dashboard 前缀）
  */
 import {
   Sidebar,
@@ -29,15 +29,25 @@ import {
   ChevronDown,
   Zap,
   Crown,
+  LogOut,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useAuth } from "@/contexts/AuthContext";
 import React from "react";
 
 export function AppSidebar() {
   const [location, setLocation] = useLocation();
+  const { user, logout } = useAuth();
+  // nest 模式下 location 是相对路径，如 "/" "/config" "/production/simulator"
   const isProductionActive = location.startsWith("/production");
   const [productionOpen, setProductionOpen] = React.useState(isProductionActive);
+
+  const handleLogout = () => {
+    logout();
+    // 需要跳出 nest 范围，使用 window.location
+    window.location.href = "/";
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/50">
@@ -170,7 +180,7 @@ export function AppSidebar() {
 
       <SidebarSeparator />
 
-      {/* Footer: User info + Upgrade */}
+      {/* Footer: User info + Logout */}
       <SidebarFooter className="px-3 py-3">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -186,9 +196,20 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton tooltip="用户">
               <Avatar className="size-5">
-                <AvatarFallback className="text-[10px] bg-emerald-100 text-emerald-700">U</AvatarFallback>
+                <AvatarFallback className="text-[10px] bg-emerald-100 text-emerald-700">
+                  {user?.name?.[0] || "U"}
+                </AvatarFallback>
               </Avatar>
-              <span className="text-sm">免费用户</span>
+              <span className="text-sm">{user?.name || "用户"}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="退出登录"
+              onClick={handleLogout}
+            >
+              <LogOut className="size-4 text-red-500" />
+              <span className="text-sm text-red-500">退出登录</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

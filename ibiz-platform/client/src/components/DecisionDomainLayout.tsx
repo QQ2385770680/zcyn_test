@@ -1,7 +1,7 @@
 /**
  * DecisionDomainLayout — 决策域通用布局
  * 每个决策域包含三个标签页：模拟器、方案设计器、我的方案
- * 设计风格：清新简洁，标签页切换
+ * 注意：nest 模式下 useLocation 返回相对路径
  */
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useLocation } from "wouter";

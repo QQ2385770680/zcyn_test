@@ -11,9 +11,9 @@
 
 /**
  * 产量行为模式
- * - 'required': 必选 — 求解器必须为此单元格分配产量
- * - 'optional': 可选 — 求解器可以选择是否分配产量
- * - 'blank':    留空 — 此单元格不生产（产量固定为 0）
+ * - 'required': 必填 — 求解器必须为此单元格分配产量
+ * - 'optional': 选填 — 求解器可以选择是否分配产量
+ * - 'blank':    不填 — 此单元格不生产（产量固定为 0）
  * - 'fixed':    固定 — 用户指定固定产量值
  */
 export type ProductionMode = "required" | "optional" | "blank" | "fixed";

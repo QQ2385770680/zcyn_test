@@ -92,8 +92,11 @@ const CELL_COLORS = {
   optional: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-700", label: "选填" },
   free: { bg: "bg-white", border: "border-gray-200", text: "text-gray-700", label: "自由" },
   disabled: { bg: "bg-gray-100", border: "border-gray-200", text: "text-gray-400", label: "禁区" },
-  zero: { bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-400", label: "不填" },
+  blank: { bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-400", label: "不填" },
+  fixed: { bg: "bg-emerald-50", border: "border-emerald-300", text: "text-emerald-700", label: "固定" },
 };
+
+type CellColorKey = keyof typeof CELL_COLORS;
 
 // ============================================================
 // 约束状态颜色
@@ -116,7 +119,7 @@ function constraintBg(value: number): string {
 // ============================================================
 
 export function ProductionSimulator() {
-  const { config } = useConfig();
+  const { config, updateConfig } = useConfig();
   const { showToast, ToastComponent } = useToast();
   const { consumeSimData } = useDesignPlan();
 
@@ -322,6 +325,10 @@ export function ProductionSimulator() {
           <span className="inline-block w-3 h-3 rounded-sm bg-gray-100 border border-gray-300" />
           灰格 = 不填
         </span>
+        <span className="flex items-center gap-1">
+          <span className="inline-block w-3 h-3 rounded-sm bg-emerald-100 border border-emerald-300" />
+          绿格 = 固定
+        </span>
         <span className="ml-2 flex items-center gap-2">
           <span className="text-emerald-600">● 正常</span>
           <span className="text-amber-600">● 偏紧</span>
@@ -344,6 +351,10 @@ export function ProductionSimulator() {
               updateProduction(idx, shift, product, value)
             }
             onOptimize={() => handleOptimizePeriod(idx)}
+            activeDesign={activeDesign}
+            onUpdateInitialParam={idx === 0 ? (field, value) => {
+              updateConfig({ [field]: value });
+            } : undefined}
           />
         ))}
       </div>
@@ -468,6 +479,8 @@ interface PeriodAccordionProps {
     value: number
   ) => void;
   onOptimize: () => void;
+  activeDesign: DesignPlanConfig | null;
+  onUpdateInitialParam?: (field: "initialWorkers" | "initialMachines", value: number) => void;
 }
 
 function PeriodAccordion({
@@ -479,9 +492,38 @@ function PeriodAccordion({
   onToggle,
   onUpdateProduction,
   onOptimize,
+  activeDesign,
+  onUpdateInitialParam,
 }: PeriodAccordionProps) {
   const period = periodIdx + 1;
   const colorMap = PERIOD_COLOR_MAPS[period] || PERIOD_COLOR_MAPS[8];
+
+  // 根据方案设计的行为模式获取单元格颜色
+  const getCellColor = (product: string, shiftKey: string): CellColorKey => {
+    if (activeDesign && activeDesign.periodProductions[periodIdx]) {
+      const periodConfig = activeDesign.periodProductions[periodIdx];
+      const shiftConfig = periodConfig[shiftKey as keyof typeof periodConfig];
+      if (shiftConfig) {
+        const cellConfig = shiftConfig[product as keyof typeof shiftConfig];
+        if (cellConfig) {
+          // 方案设计行为模式直接映射到颜色
+          const modeToColor: Record<string, CellColorKey> = {
+            required: "required",
+            optional: "optional",
+            blank: "blank",
+            fixed: "fixed",
+          };
+          return modeToColor[cellConfig.mode] || "free";
+        }
+      }
+    }
+    // 没有方案设计时，回退到规则表颜色映射
+    const ruleColor = colorMap[product]?.[shiftKey] || "free";
+    // 将规则表颜色映射到 CELL_COLORS key
+    if (ruleColor === "zero") return "blank";
+    if (ruleColor === "disabled") return "disabled";
+    return ruleColor as CellColorKey;
+  };
   const totalOutput =
     result.totalOutput.A + result.totalOutput.B + result.totalOutput.C + result.totalOutput.D;
   const passed = allConstraintsSatisfied(result.constraints);
@@ -569,10 +611,44 @@ function PeriodAccordion({
       {/* 展开内容 */}
       <CollapsibleContent>
         <div className="mt-1 p-4 border border-gray-200 rounded-lg bg-white space-y-4">
+          {/* 第1期初始参数（必填） */}
+          {period === 1 && onUpdateInitialParam && (
+            <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50/50 border border-amber-200 rounded-lg">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-amber-800 flex items-center gap-1">
+                  初始工人数
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700">必填</span>
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={r.initialWorkers || ""}
+                  onChange={(e) => onUpdateInitialParam("initialWorkers", parseInt(e.target.value) || 0)}
+                  className="h-8 text-sm bg-white border-amber-300 focus:border-amber-500"
+                  placeholder="如：113"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-amber-800 flex items-center gap-1">
+                  初始机器数
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700">必填</span>
+                </label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={r.machines || ""}
+                  onChange={(e) => onUpdateInitialParam("initialMachines", parseInt(e.target.value) || 0)}
+                  className="h-8 text-sm bg-white border-amber-300 focus:border-amber-500"
+                  placeholder="如：157"
+                />
+              </div>
+            </div>
+          )}
+
           {/* 资源信息行 */}
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-            <ResourceCell label="本期机器" value={String(r.machines)} tag="必填" />
-            <ResourceCell label="期初人数" value={String(Math.round(r.initialWorkers))} tag="必填" />
+            <ResourceCell label="本期机器" value={String(r.machines)} />
+            <ResourceCell label="期初人数" value={String(Math.round(r.initialWorkers))} />
             <ResourceCell label="可用人数" value={r.totalAvailableWorkers.toFixed(1)} />
             <ResourceCell
               label="解雇/雇佣"
@@ -606,9 +682,9 @@ function PeriodAccordion({
                     <tr key={product} className="border-b last:border-0">
                       <td className="py-1.5 pr-2 font-semibold text-foreground">{product}</td>
                       {shifts.map((s) => {
-                        const cellColor = colorMap[product]?.[s.key] || "free";
+                        const cellColor = getCellColor(product, s.key);
                         const colors = CELL_COLORS[cellColor] || CELL_COLORS.free;
-                        const isDisabled = cellColor === "disabled" || cellColor === "zero";
+                        const isDisabled = cellColor === "disabled" || cellColor === "blank";
                         return (
                           <td key={s.key} className="py-1.5 px-1">
                             <Input

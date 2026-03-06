@@ -129,8 +129,26 @@ export function ProductionDesigner() {
   const { config } = useConfig();
   const { showToast, ToastComponent } = useToast();
 
-  // 当前方案
-  const [plan, setPlan] = React.useState<DesignPlanConfig>(() => defaultDesignPlanConfig(config.periods));
+  // 当前方案 — 初始化时根据每期规则表颜色映射设置行为模式
+  const [plan, setPlan] = React.useState<DesignPlanConfig>(() => {
+    const base = defaultDesignPlanConfig(config.periods);
+    // 根据规则表颜色映射初始化每期行为模式
+    for (let p = 0; p < config.periods; p++) {
+      const cm = PERIOD_COLOR_MAPS[p + 1] || PERIOD_COLOR_MAPS[8];
+      const period = base.periodProductions[p];
+      for (const product of ["A", "B", "C", "D"] as const) {
+        for (const shift of ["shift1", "ot1", "shift2", "ot2"] as const) {
+          const color = cm[product]?.[shift] || "free";
+          const cell = period[shift][product];
+          if (color === "required") cell.mode = "required";
+          else if (color === "optional") cell.mode = "optional";
+          else if (color === "disabled" || color === "zero") cell.mode = "blank";
+          else cell.mode = "optional";
+        }
+      }
+    }
+    return base;
+  });
   const [currentPlanId, setCurrentPlanId] = React.useState<string | null>(null);
 
   // 当前选中的期数（Tab）
@@ -305,7 +323,7 @@ export function ProductionDesigner() {
       next.periodProductions = periods;
       return next;
     });
-    showToast("已根据规则表颜色映射初始化产量配置", "info");
+    showToast("已恢复为初始值（基于规则表颜色映射）", "info");
   };
 
   // ============================================================
@@ -401,7 +419,7 @@ export function ProductionDesigner() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={initFromColorMap}>
             <Grid3X3 className="size-3.5" />
-            从规则表初始化
+            恢复初始值
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={handleImport}>
             <Upload className="size-3.5" />
@@ -623,7 +641,7 @@ export function ProductionDesigner() {
                 1-8 期雇佣策略
               </CardTitle>
               <CardDescription className="text-xs">
-                为每期设置雇佣/解雇策略。初始工人数：{config.initialWorkers}，最少解雇率：{config.minFireRate}%，最大雇佣率：{config.maxHireRate}%
+                为每期设置雇佣/解雇策略。最少解雇率：{config.minFireRate}%，最大雇佣率：{config.maxHireRate}%
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">

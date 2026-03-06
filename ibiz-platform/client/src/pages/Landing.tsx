@@ -32,7 +32,7 @@ export default function Landing() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white font-bold text-sm">
               iB
             </div>
-            <span className="font-semibold text-gray-900">iBizSim</span>
+            <span className="font-semibold text-gray-900">无双 · iBizSim</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-gray-600">
             <a href="#features" className="hover:text-emerald-600 transition-colors">功能特性</a>
@@ -99,28 +99,7 @@ export default function Landing() {
             </Button>
           </div>
 
-          {/* Stats row */}
-          <div className="flex items-center justify-center gap-8 md:gap-16 mt-16 text-center">
-            <div>
-              <div className="text-3xl font-bold text-gray-900">8+</div>
-              <div className="text-sm text-gray-500 mt-1">模拟期数</div>
-            </div>
-            <div className="w-px h-10 bg-gray-200" />
-            <div>
-              <div className="text-3xl font-bold text-gray-900">4</div>
-              <div className="text-sm text-gray-500 mt-1">产品线</div>
-            </div>
-            <div className="w-px h-10 bg-gray-200" />
-            <div>
-              <div className="text-3xl font-bold text-gray-900">157</div>
-              <div className="text-sm text-gray-500 mt-1">初始机器</div>
-            </div>
-            <div className="w-px h-10 bg-gray-200" />
-            <div>
-              <div className="text-3xl font-bold text-gray-900">113</div>
-              <div className="text-sm text-gray-500 mt-1">初始工人</div>
-            </div>
-          </div>
+
         </div>
       </section>
 
@@ -217,7 +196,7 @@ export default function Landing() {
             准备好提升竞赛成绩了吗？
           </h2>
           <p className="text-gray-500 mb-8 max-w-lg mx-auto">
-            免费注册即可使用全部基础功能，无需信用卡，立即开始。
+            免费注册即可使用全部基础功能，无需门槛，立即开始。
           </p>
           <div className="flex items-center justify-center gap-4">
             <Button
@@ -241,7 +220,7 @@ export default function Landing() {
                 iB
               </div>
               <div>
-                <span className="font-semibold text-gray-900">iBizSim</span>
+                <span className="font-semibold text-gray-900">无双 · iBizSim</span>
                 <span className="text-gray-400 text-sm ml-2">智能决策辅助系统</span>
               </div>
             </div>
@@ -253,7 +232,7 @@ export default function Landing() {
                 管理员入口
               </button>
               <span className="text-gray-300">|</span>
-              <span>iBizSim Team 2026</span>
+              <span>无双工作室 © 2026</span>
             </div>
           </div>
         </div>

@@ -56,7 +56,7 @@ export default function Login() {
               iB
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">iBizSim</h2>
+              <h2 className="text-xl font-bold text-gray-900">无双 · iBizSim</h2>
               <p className="text-sm text-gray-500">智能决策辅助系统</p>
             </div>
           </div>
@@ -91,7 +91,7 @@ export default function Login() {
           <Card className="border-gray-100 shadow-sm">
             <CardHeader className="space-y-1 pb-4">
               <CardTitle className="text-xl">用户登录</CardTitle>
-              <CardDescription>登录您的 iBizSim 账号开始使用</CardDescription>
+              <CardDescription>登录您的账号开始使用</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">

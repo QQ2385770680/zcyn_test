@@ -35,7 +35,7 @@ export default function Home() {
 
         <div className="relative z-10 max-w-2xl space-y-5">
           <Badge className="bg-emerald-100 text-emerald-700 border-0 hover:bg-emerald-100">
-            iBizSim 企业竞争模拟
+            无双 · iBizSim 企业竞争模拟
           </Badge>
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
             智能决策辅助系统

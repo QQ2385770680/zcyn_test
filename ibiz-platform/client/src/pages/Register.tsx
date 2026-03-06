@@ -64,12 +64,12 @@ export default function Register() {
               iB
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">iBizSim</h2>
+              <h2 className="text-xl font-bold text-gray-900">无双 · iBizSim</h2>
               <p className="text-sm text-gray-500">智能决策辅助系统</p>
             </div>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 leading-tight mb-4">
-            加入 iBizSim<br />开启智能决策之旅
+            加入无双工作室<br />开启智能决策之旅
           </h1>
           <p className="text-gray-500 leading-relaxed mb-8">
             注册账号后即可使用全部基础功能，包括生产模拟、方案设计和方案市场。
@@ -98,7 +98,7 @@ export default function Register() {
           <Card className="border-gray-100 shadow-sm">
             <CardHeader className="space-y-1 pb-4">
               <CardTitle className="text-xl">创建账号</CardTitle>
-              <CardDescription>注册 iBizSim 账号，开始使用智能决策工具</CardDescription>
+              <CardDescription>注册账号，开始使用智能决策工具</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">

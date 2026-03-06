@@ -129,21 +129,15 @@ export function ProductionDesigner() {
   const { config } = useConfig();
   const { showToast, ToastComponent } = useToast();
 
-  // 当前方案 — 初始化时根据每期规则表颜色映射设置行为模式
+  // 当前方案 — 初始化时所有期行为模式默认为留空
   const [plan, setPlan] = React.useState<DesignPlanConfig>(() => {
     const base = defaultDesignPlanConfig(config.periods);
-    // 根据规则表颜色映射初始化每期行为模式
+    // 默认所有单元格行为模式为留空
     for (let p = 0; p < config.periods; p++) {
-      const cm = PERIOD_COLOR_MAPS[p + 1] || PERIOD_COLOR_MAPS[8];
       const period = base.periodProductions[p];
       for (const product of ["A", "B", "C", "D"] as const) {
         for (const shift of ["shift1", "ot1", "shift2", "ot2"] as const) {
-          const color = cm[product]?.[shift] || "free";
-          const cell = period[shift][product];
-          if (color === "required") cell.mode = "required";
-          else if (color === "optional") cell.mode = "optional";
-          else if (color === "disabled" || color === "zero") cell.mode = "blank";
-          else cell.mode = "optional";
+          period[shift][product].mode = "blank";
         }
       }
     }
@@ -306,16 +300,13 @@ export function ProductionDesigner() {
       const next = { ...prev };
       const periods = [...next.periodProductions];
       for (let p = 0; p < config.periods; p++) {
-        const cm = PERIOD_COLOR_MAPS[p + 1] || PERIOD_COLOR_MAPS[8];
         const period = JSON.parse(JSON.stringify(periods[p])) as PeriodProductionConfig;
         for (const product of PRODUCTS) {
           for (const shift of SHIFTS) {
-            const color: CellColor = cm[product]?.[shift.key] || "free";
             const cell = period[shift.key][product];
-            if (color === "required") cell.mode = "required";
-            else if (color === "optional") cell.mode = "optional";
-            else if (color === "disabled" || color === "zero") cell.mode = "blank";
-            else cell.mode = "optional";
+            cell.mode = "blank";
+            cell.fixedValue = 0;
+            cell.range = { min: 0, max: 999 };
           }
         }
         periods[p] = period;
@@ -323,7 +314,7 @@ export function ProductionDesigner() {
       next.periodProductions = periods;
       return next;
     });
-    showToast("已恢复为初始值（基于规则表颜色映射）", "info");
+    showToast("已恢复为初始值（所有期行为模式设为留空）", "info");
   };
 
   // ============================================================
@@ -568,7 +559,8 @@ export function ProductionDesigner() {
                       <React.Fragment key={shift.key}>
                         {PRODUCTS.map((product, prodIdx) => {
                           const cell = currentProdConfig[shift.key][product];
-                          const ruleColor = colorMap[product]?.[shift.key] || "free";
+                          // 规则标记根据当前行为模式动态变化
+                          const ruleColor: CellColor = cell.mode === "required" ? "required" : cell.mode === "optional" ? "optional" : cell.mode === "blank" ? "zero" : "free";
                           const isFirstInGroup = prodIdx === 0;
                           return (
                             <tr

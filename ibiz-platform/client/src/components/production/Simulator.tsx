@@ -104,14 +104,14 @@ type CellColorKey = keyof typeof CELL_COLORS;
 
 function constraintColor(value: number): string {
   if (value < -0.001) return "text-red-600 font-semibold";
-  if (value < 5) return "text-amber-600";
-  return "text-emerald-600";
+  if (value < 5) return "text-emerald-600"; // 接近0 = 达标
+  return "text-amber-600"; // 偏大
 }
 
 function constraintBg(value: number): string {
   if (value < -0.001) return "bg-red-50";
-  if (value < 5) return "bg-amber-50";
-  return "";
+  if (value < 5) return ""; // 接近0 = 达标
+  return "bg-amber-50"; // 偏大
 }
 
 // ============================================================
@@ -330,9 +330,9 @@ export function ProductionSimulator() {
           绿格 = 固定
         </span>
         <span className="ml-2 flex items-center gap-2">
-          <span className="text-emerald-600">● 正常</span>
-          <span className="text-amber-600">● 偏紧</span>
-          <span className="text-red-600">● 超限</span>
+          <span className="text-emerald-600">⊙ 接近0</span>
+          <span className="text-amber-600">△ 偏大</span>
+          <span className="text-red-600">⊗ 超限</span>
         </span>
       </div>
 
@@ -596,9 +596,11 @@ function PeriodAccordion({
               <span className="font-medium text-foreground">第{period}期</span>
               {" "}机器:{r.machines} | 可用人数:{r.totalAvailableWorkers.toFixed(1)}
             </span>
-            <span className="text-muted-foreground">
-              {hiringDesc} | 解雇:{r.fired} | 雇佣:{r.hired}
-            </span>
+            {activeDesign && (
+              <span className="text-muted-foreground">
+                {hiringDesc} | 解雇:{r.fired} | 雇佣:{r.hired}
+              </span>
+            )}
           </div>
 
           {/* 总产量 */}
@@ -716,13 +718,17 @@ function PeriodAccordion({
                 <tr className="border-t border-dashed border-gray-200">
                   <td className="py-1.5 pr-2 text-xs text-muted-foreground whitespace-nowrap">可用人数</td>
                   {[
-                    { value: result.constraints.c1_workersAfterShift1, label: "一二班后" },
+                    { value: result.constraints.c1_workersAfterShift1, label: "一班后" },
                     { value: result.constraints.c2_workersAfterOt1, label: "一加后" },
-                    { value: result.constraints.c1_workersAfterShift1, label: "二班同一班" },
+                    { value: null, label: "" },
                     { value: result.constraints.c4_workersAfterOt2, label: "二加后" },
                   ].map((item, i) => (
                     <td key={i} className="py-1.5 px-1 text-center">
-                      <ConstraintInline value={item.value} sub={item.label} />
+                      {item.value !== null ? (
+                        <ConstraintInline value={item.value} sub={item.label} />
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                   ))}
                   <td />
@@ -791,7 +797,7 @@ function ResourceCell({
 /** 内联约束值显示（嵌入表格单元格，借鉴 wuushuang 风格） */
 function ConstraintInline({ value, sub }: { value: number; sub?: string }) {
   const status = getConstraintStatus(value);
-  const icon = status === "fail" ? "⊗" : status === "warning" ? "△" : "⊙";
+  const icon = status === "fail" ? "⊗" : status === "warning" ? "△" : "⊙"; // 接近0=⊙达标, 偏大=△, 超限=⊗
   const colorCls = constraintColor(value);
   return (
     <div className="flex flex-col items-center leading-tight">

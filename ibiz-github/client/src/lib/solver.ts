@@ -318,6 +318,9 @@ function calcChainedResources(
 
 /**
  * 搜索最优机器购买数量
+ *
+ * 目标：让目标期（购买期+2）的一班可用人数和一班二班二加可用机器数最小化
+ * 即资源利用率最大化，人力和机器刚好匹配
  */
 function searchOptimalMachinePurchase(
   purchasePeriodIdx: number,
@@ -341,10 +344,17 @@ function searchOptimalMachinePurchase(
 
     const avgMachineCoeff = config.products.reduce((s, pr) => s + getMachineCoeff(pr), 0) / 4;
     const avgLaborCoeff = config.products.reduce((s, pr) => s + getLaborCoeff(pr), 0) / 4;
-    const maxMachineByLabor = avgLaborCoeff > 0 ? (workers / avgLaborCoeff) * avgMachineCoeff : 999;
 
-    const ratio = maxMachineByLabor > 0 ? machines / maxMachineByLabor : 1;
-    const score = -Math.abs(ratio - 1.0) * 100 + machines * 0.1;
+    // 机器能支撑的最大人力需求
+    const machineCapInLabor = avgMachineCoeff > 0 ? (machines / avgMachineCoeff) * avgLaborCoeff : 999;
+    // 人力能支撑的最大机器需求
+    const laborCapInMachine = avgLaborCoeff > 0 ? (workers / avgLaborCoeff) * avgMachineCoeff : 999;
+
+    // 资源剩余最小化：人力剩余 + 机器剩余 越小越好
+    const workerSurplus = Math.max(0, workers - machineCapInLabor);
+    const machineSurplus = Math.max(0, machines - laborCapInMachine);
+    // 总分 = -(剩余总量)，越大越好
+    const score = -(workerSurplus + machineSurplus * 10);
 
     if (score > bestScore) {
       bestScore = score;
@@ -356,7 +366,10 @@ function searchOptimalMachinePurchase(
 }
 
 /**
- * 搜索最优雇佣人数（custom 模式）
+ * 搜索最优雇佣人数（range 模式）
+ *
+ * 目标：让下一期的一班可用人数（C1）和一班二班二加可用机器数（C5/C7/C8）最小化
+ * 即让下一期资源利用率最大化
  */
 function searchOptimalHiring(
   periodIdx: number,
@@ -388,12 +401,21 @@ function searchOptimalHiring(
       const workers = nextResources.totalAvailableWorkers;
       const machines = nextResources.machines;
 
+      // 目标：让下一期的可用人数和可用机器都尽量小（即刚好够用）
+      // 计算下一期的最大产能（用于评估资源是否匹配）
       const avgMachineCoeff = config.products.reduce((s, pr) => s + getMachineCoeff(pr), 0) / 4;
       const avgLaborCoeff = config.products.reduce((s, pr) => s + getLaborCoeff(pr), 0) / 4;
-      const maxWorkersByMachine = avgMachineCoeff > 0 ? (machines / avgMachineCoeff) * avgLaborCoeff : 999;
 
-      const ratio = maxWorkersByMachine > 0 ? workers / maxWorkersByMachine : 1;
-      const score = -Math.abs(ratio - 1.0) * 100 + workers * 0.01;
+      // 机器能支撑的最大人力需求
+      const machineCapInLabor = avgMachineCoeff > 0 ? (machines / avgMachineCoeff) * avgLaborCoeff : 999;
+      // 人力能支撑的最大机器需求
+      const laborCapInMachine = avgLaborCoeff > 0 ? (workers / avgLaborCoeff) * avgMachineCoeff : 999;
+
+      // 资源剩余最小化：人力剩余 + 机器剩余 越小越好
+      const workerSurplus = Math.max(0, workers - machineCapInLabor);
+      const machineSurplus = Math.max(0, machines - laborCapInMachine);
+      // 总分 = -(剩余总量)，越大越好（剩余越小越好）
+      const score = -(workerSurplus + machineSurplus * 10);
 
       if (score > bestScore) {
         bestScore = score;

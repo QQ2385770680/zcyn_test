@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Collapsible,
   CollapsibleContent,
@@ -33,6 +34,7 @@ import {
   FolderOpen,
   AlertTriangle,
   TrendingUp,
+  Link2,
 } from "lucide-react";
 import React from "react";
 
@@ -186,6 +188,13 @@ export function ProductionSimulator() {
     cachedSim?.decisions ?? generateDefaultDecisions(config)
   );
 
+  // 输入框字符串 state（允许删空）
+  const [initMachinesStr, setInitMachinesStr] = React.useState(String(config.initialMachines));
+  const [initWorkersStr, setInitWorkersStr] = React.useState(String(config.initialWorkers));
+
+  // 联动自动求解开关
+  const [autoSolveLinked, setAutoSolveLinked] = React.useState(false);
+
   // 恢复缓存的初始参数
   React.useEffect(() => {
     if (cachedSim && cachedSim.initialMachines !== undefined && cachedSim.initialWorkers !== undefined) {
@@ -253,6 +262,22 @@ export function ProductionSimulator() {
     });
   };
 
+  /** 联动自动求解：对 periodIdx 之后的所有期调用本期最优 */
+  const autoSolveAfter = React.useCallback((periodIdx: number, currentProductions: PeriodProduction[], currentDecisions: PeriodDecision[]) => {
+    if (!autoSolveLinked || !activeDesign) return { productions: currentProductions, decisions: currentDecisions };
+    const newProductions = [...currentProductions];
+    const newDecisions = [...currentDecisions];
+    for (let i = periodIdx + 1; i < config.periods; i++) {
+      const period = i + 1;
+      const tempResults = calcAllPeriods(config, newProductions, newDecisions);
+      const resources = tempResults[i]?.resources;
+      if (!resources) break;
+      const optimized = solveSinglePeriod(resources, config, period, activeDesign);
+      newProductions[i] = optimized;
+    }
+    return { productions: newProductions, decisions: newDecisions };
+  }, [autoSolveLinked, activeDesign, config]);
+
   const updateProduction = (
     periodIdx: number,
     shift: keyof PeriodProduction,
@@ -268,6 +293,11 @@ export function ProductionSimulator() {
           [product]: Math.max(0, Math.floor(value) || 0),
         },
       };
+      // 联动自动求解后续期
+      if (autoSolveLinked && activeDesign) {
+        const { productions: solved } = autoSolveAfter(periodIdx, next, decisions);
+        return solved;
+      }
       return next;
     });
   };
@@ -335,6 +365,17 @@ export function ProductionSimulator() {
       next[periodIdx] = { ...next[periodIdx], hired };
       return next;
     });
+    // 联动自动求解后续期
+    if (autoSolveLinked && activeDesign) {
+      setTimeout(() => {
+        setProductions((prev) => {
+          const newDecisions = [...decisions];
+          newDecisions[periodIdx] = { ...newDecisions[periodIdx], hired };
+          const { productions: solved } = autoSolveAfter(periodIdx, prev, newDecisions);
+          return solved;
+        });
+      }, 0);
+    }
   };
 
   // ============================================================
@@ -412,6 +453,22 @@ export function ProductionSimulator() {
         </Button>
       </div>
 
+      {/* ===== 联动自动求解开关 ===== */}
+      {activeDesign && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50/40">
+          <Link2 className="size-4 text-blue-600" />
+          <span className="text-xs font-medium text-blue-700">联动自动求解</span>
+          <Switch
+            checked={autoSolveLinked}
+            onCheckedChange={setAutoSolveLinked}
+            className="data-[state=checked]:bg-blue-600"
+          />
+          <span className="text-[11px] text-blue-500">
+            {autoSolveLinked ? "开启：修改某期参数后自动排后续期最优解" : "关闭"}
+          </span>
+        </div>
+      )}
+
       {/* ===== 颜色图例 ===== */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
@@ -450,8 +507,13 @@ export function ProductionSimulator() {
           <Input
             type="number"
             min={0}
-            value={config.initialMachines ?? ""}
-            onChange={(e) => updateConfig({ initialMachines: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+            value={initMachinesStr}
+            onChange={(e) => setInitMachinesStr(e.target.value)}
+            onBlur={() => {
+              const v = parseInt(initMachinesStr) || 0;
+              setInitMachinesStr(String(v));
+              updateConfig({ initialMachines: v });
+            }}
             className="h-7 w-20 text-sm text-center bg-white border-amber-300 focus:border-amber-500"
             placeholder="0"
           />
@@ -461,8 +523,13 @@ export function ProductionSimulator() {
           <Input
             type="number"
             min={0}
-            value={config.initialWorkers ?? ""}
-            onChange={(e) => updateConfig({ initialWorkers: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+            value={initWorkersStr}
+            onChange={(e) => setInitWorkersStr(e.target.value)}
+            onBlur={() => {
+              const v = parseInt(initWorkersStr) || 0;
+              setInitWorkersStr(String(v));
+              updateConfig({ initialWorkers: v });
+            }}
             className="h-7 w-20 text-sm text-center bg-white border-amber-300 focus:border-amber-500"
             placeholder="0"
           />
@@ -772,15 +839,9 @@ function PeriodAccordion({
                   <span className="text-xs text-red-500">-{r.fired}</span>
                   <span className="text-xs text-gray-400">/</span>
                   <span className="text-xs text-emerald-600">+</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={r.maxHire}
+                  <ProductionInput
                     value={decision.hired}
-                    onChange={(e) => {
-                      const val = Math.max(0, Math.min(r.maxHire, parseInt(e.target.value) || 0));
-                      onUpdateHired(periodIdx, val);
-                    }}
+                    onChange={(val) => onUpdateHired(periodIdx, Math.min(r.maxHire, val))}
                     className="h-6 w-20 text-xs text-center bg-white border-blue-300 focus:border-blue-500"
                     placeholder="0"
                   />
@@ -825,17 +886,9 @@ function PeriodAccordion({
                         const isDisabled = cellColor === "disabled" || cellColor === "blank";
                         return (
                           <td key={s.key} className="py-1.5 px-1">
-                            <Input
-                              type="number"
-                              min={0}
-                              value={production[s.key][product] || ""}
-                              onChange={(e) =>
-                                onUpdateProduction(
-                                  s.key,
-                                  product,
-                                  parseInt(e.target.value) || 0
-                                )
-                              }
+                            <ProductionInput
+                              value={production[s.key][product]}
+                              onChange={(val) => onUpdateProduction(s.key, product, val)}
                               disabled={isDisabled}
                               className={`h-8 text-center text-sm w-full ${colors.bg} ${colors.border} border ${
                                 isDisabled ? "opacity-50 cursor-not-allowed" : ""
@@ -942,6 +995,48 @@ function ResourceCell({
       </div>
       <div className="text-sm font-semibold text-foreground mt-0.5 whitespace-nowrap">{value}</div>
     </div>
+  );
+}
+
+/** 可删空的数字输入框（解决输入 0 无法删除的问题） */
+function ProductionInput({
+  value,
+  onChange,
+  disabled,
+  className,
+  placeholder,
+}: {
+  value: number;
+  onChange: (val: number) => void;
+  disabled?: boolean;
+  className?: string;
+  placeholder?: string;
+}) {
+  const [str, setStr] = React.useState(value === 0 ? "" : String(value));
+  // 同步外部 value 变化（如最优求解后）
+  React.useEffect(() => {
+    setStr(value === 0 ? "" : String(value));
+  }, [value]);
+  return (
+    <Input
+      type="number"
+      min={0}
+      value={str}
+      onChange={(e) => {
+        setStr(e.target.value);
+        const parsed = parseInt(e.target.value);
+        if (!isNaN(parsed)) onChange(Math.max(0, parsed));
+        else if (e.target.value === "") onChange(0);
+      }}
+      onBlur={() => {
+        const v = parseInt(str) || 0;
+        setStr(v === 0 ? "" : String(v));
+        onChange(v);
+      }}
+      disabled={disabled}
+      className={className}
+      placeholder={placeholder}
+    />
   );
 }
 

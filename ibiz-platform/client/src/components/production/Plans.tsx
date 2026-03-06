@@ -5,13 +5,13 @@
  * - 查看已保存的方案列表（卡片网格）
  * - 同时展示两种来源的方案：
  *   1. planStorage 中的传统方案（ProductionPlan）
- *   2. designerTypes 中的设计器方案（DesignPlan）— 标记为"设计器方案"
+ *   2. designerTypes 中的设计器方案 — 归类为"生产方案"
  * - 设计器方案支持"编辑"按钮跳转到方案设计器并加载
- * - 创建新方案（弹窗输入名称和描述）
  * - 收藏/取消收藏方案
  * - 复制方案
  * - 删除方案
  * - 搜索方案
+ * - 显示每个方案的使用次数（根据生产模拟中加载次数计算）
  *
  * 数据来源：localStorage（通过 planStorage 和 designerTypes 服务）
  */
@@ -19,9 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  Plus,
   Search,
   MoreHorizontal,
   Star,
@@ -29,11 +27,10 @@ import {
   Trash2,
   Clock,
   TrendingUp,
-  ArrowUpDown,
   FileText,
-  X,
   Pencil,
-  Sparkles,
+  BarChart3,
+  Play,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -50,11 +47,12 @@ import {
 import { useConfig } from "@/lib/ConfigContext";
 import {
   loadPlans,
-  createPlan,
   deletePlan,
   duplicatePlan,
   toggleStarPlan,
   formatRelativeTime,
+  loadUsageStats,
+  type PlanUsageStats,
 } from "@/lib/planStorage";
 import {
   loadDesignPlans,
@@ -90,29 +88,18 @@ export function ProductionPlans() {
   const [plans, setPlans] = React.useState<ProductionPlan[]>([]);
   const [designPlans, setDesignPlans] = React.useState<(DesignPlanConfig & { id: string; createdAt: string; updatedAt: string })[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [showCreateDialog, setShowCreateDialog] = React.useState(false);
-  const [newPlanName, setNewPlanName] = React.useState("");
-  const [newPlanDesc, setNewPlanDesc] = React.useState("");
+  const [usageStats, setUsageStats] = React.useState<PlanUsageStats>({});
 
-  // 加载方案列表
+  // 加载方案列表和使用次数
   const refreshPlans = React.useCallback(() => {
     setPlans(loadPlans());
     setDesignPlans(loadDesignPlans());
+    setUsageStats(loadUsageStats());
   }, []);
 
   React.useEffect(() => {
     refreshPlans();
   }, [refreshPlans]);
-
-  // 创建方案
-  const handleCreate = () => {
-    if (!newPlanName.trim()) return;
-    createPlan(newPlanName.trim(), newPlanDesc.trim(), config);
-    setNewPlanName("");
-    setNewPlanDesc("");
-    setShowCreateDialog(false);
-    refreshPlans();
-  };
 
   // 删除方案
   const handleDelete = (id: string, source: "legacy" | "designer") => {
@@ -138,7 +125,6 @@ export function ProductionPlans() {
 
   // 编辑设计器方案：将方案数据写入缓存并跳转到设计器
   const handleEditDesignPlan = (dp: DesignPlanConfig & { id: string; createdAt: string; updatedAt: string }) => {
-    // 将方案数据写入设计器草稿缓存
     try {
       const planConfig: DesignPlanConfig = {
         name: dp.name,
@@ -154,7 +140,6 @@ export function ProductionPlans() {
     } catch {
       // 写入失败
     }
-    // 跳转到方案设计器
     setLocation("/production/designer");
   };
 
@@ -176,7 +161,7 @@ export function ProductionPlans() {
       });
     }
 
-    // 设计器方案
+    // 设计器方案（归类为生产方案）
     for (const dp of designPlans) {
       result.push({
         id: dp.id,
@@ -219,79 +204,13 @@ export function ProductionPlans() {
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div className="flex gap-2">
-          <Badge variant="outline" className="text-gray-500">
-            {unifiedPlans.length} 个方案
-          </Badge>
-          <Button
-            size="sm"
-            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => setShowCreateDialog(true)}
-          >
-            <Plus className="size-3.5" />
-            新建方案
-          </Button>
-        </div>
+        <Badge variant="outline" className="text-gray-500">
+          {unifiedPlans.length} 个方案
+        </Badge>
       </div>
 
-      {/* 创建方案弹窗（简易内联版） */}
-      {showCreateDialog && (
-        <Card className="border-emerald-200 bg-emerald-50/30">
-          <CardContent className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900">创建新方案</h3>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowCreateDialog(false)}
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs">方案名称</Label>
-                <Input
-                  placeholder="例如：第3期最优排产方案"
-                  value={newPlanName}
-                  onChange={(e) => setNewPlanName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">方案描述（可选）</Label>
-                <Input
-                  placeholder="简要描述方案策略..."
-                  value={newPlanDesc}
-                  onChange={(e) => setNewPlanDesc(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowCreateDialog(false)}
-              >
-                取消
-              </Button>
-              <Button
-                size="sm"
-                className="bg-emerald-600 hover:bg-emerald-700"
-                onClick={handleCreate}
-                disabled={!newPlanName.trim()}
-              >
-                创建
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* 方案列表 */}
-      {sortedPlans.length === 0 && !showCreateDialog ? (
+      {sortedPlans.length === 0 ? (
         <Card className="border-dashed border-gray-200">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
@@ -301,16 +220,17 @@ export function ProductionPlans() {
             <p className="text-xs text-gray-400 mb-4">
               {searchQuery
                 ? "没有找到匹配的方案，请尝试其他关键词"
-                : "点击「新建方案」或在方案设计中保存方案"}
+                : "请在「方案设计」中创建并保存方案"}
             </p>
             {!searchQuery && (
               <Button
                 size="sm"
-                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
-                onClick={() => setShowCreateDialog(true)}
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setLocation("/production/designer")}
               >
-                <Plus className="size-3.5" />
-                新建方案
+                <Pencil className="size-3.5" />
+                前往方案设计
               </Button>
             )}
           </CardContent>
@@ -321,25 +241,13 @@ export function ProductionPlans() {
             <UnifiedPlanCard
               key={`${up.source}-${up.id}`}
               plan={up}
+              usageStats={usageStats}
               onDelete={(id) => handleDelete(id, up.source)}
               onDuplicate={up.source === "legacy" ? handleDuplicate : undefined}
               onToggleStar={up.source === "legacy" ? handleToggleStar : undefined}
               onEdit={up.source === "designer" && up.designPlan ? () => handleEditDesignPlan(up.designPlan!) : undefined}
             />
           ))}
-
-          {/* 快速新建卡片 */}
-          <Card
-            className="border-dashed border-gray-200 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/30 transition-colors"
-            onClick={() => setShowCreateDialog(true)}
-          >
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-                <Plus className="size-5 text-gray-400" />
-              </div>
-              <p className="text-sm text-gray-500">创建新方案</p>
-            </CardContent>
-          </Card>
         </div>
       )}
     </div>
@@ -348,18 +256,23 @@ export function ProductionPlans() {
 
 function UnifiedPlanCard({
   plan,
+  usageStats,
   onDelete,
   onDuplicate,
   onToggleStar,
   onEdit,
 }: {
   plan: UnifiedPlan;
+  usageStats: PlanUsageStats;
   onDelete: (id: string) => void;
   onDuplicate?: (id: string) => void;
   onToggleStar?: (id: string) => void;
   onEdit?: () => void;
 }) {
   const isDesigner = plan.source === "designer";
+  const usage = usageStats[plan.id];
+  const loadCount = usage?.loadCount || 0;
+  const lastUsedAt = usage?.lastUsedAt;
 
   // 计算总产量（传统方案）
   let totalProduction = 0;
@@ -386,6 +299,23 @@ function UnifiedPlanCard({
       }
     }
   }
+
+  // 使用频率标签
+  const usageLabel = loadCount === 0
+    ? "未使用"
+    : loadCount <= 3
+    ? "低频"
+    : loadCount <= 10
+    ? "中频"
+    : "高频";
+
+  const usageColor = loadCount === 0
+    ? "text-gray-400 border-gray-200 bg-gray-50"
+    : loadCount <= 3
+    ? "text-blue-500 border-blue-200 bg-blue-50"
+    : loadCount <= 10
+    ? "text-amber-600 border-amber-200 bg-amber-50"
+    : "text-emerald-600 border-emerald-200 bg-emerald-50";
 
   return (
     <Card className="group hover:shadow-md transition-all duration-200 border-gray-100">
@@ -442,22 +372,30 @@ function UnifiedPlanCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-center gap-2">
-          {isDesigner ? (
-            <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 gap-1">
-              <Sparkles className="size-3" />
-              设计器方案
-            </Badge>
-          ) : (
-            <Badge variant="outline" className={statusConfig[plan.legacyPlan?.status || "draft"].className}>
-              {statusConfig[plan.legacyPlan?.status || "draft"].label}
-            </Badge>
-          )}
-          <span className="text-xs text-gray-400 flex items-center gap-1">
+        {/* 标签行：方案类型 + 使用频率 + 时间 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 gap-1">
+            <Play className="size-3" />
+            生产方案
+          </Badge>
+          <Badge variant="outline" className={`gap-1 ${usageColor}`}>
+            <BarChart3 className="size-3" />
+            {usageLabel}{loadCount > 0 && ` (${loadCount}次)`}
+          </Badge>
+          <span className="text-xs text-gray-400 flex items-center gap-1 ml-auto">
             <Clock className="size-3" />
             {formatRelativeTime(plan.updatedAt)}
           </span>
         </div>
+
+        {/* 使用详情 */}
+        {loadCount > 0 && lastUsedAt && (
+          <div className="text-xs text-gray-400">
+            最近使用：{formatRelativeTime(lastUsedAt)}
+          </div>
+        )}
+
+        {/* 数据统计 */}
         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
           {isDesigner ? (
             <>
@@ -483,6 +421,7 @@ function UnifiedPlanCard({
             </>
           )}
         </div>
+
         {/* 设计器方案显示编辑按钮 */}
         {onEdit && (
           <Button

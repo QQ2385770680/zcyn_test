@@ -15,6 +15,37 @@ import {
 } from "./data";
 
 const STORAGE_KEY = "ibiz-production-plans";
+const USAGE_KEY = "ibiz-plan-usage-stats";
+
+/** 使用次数统计 */
+export interface PlanUsageStats {
+  [planId: string]: {
+    loadCount: number;
+    lastUsedAt: string;
+  };
+}
+
+/** 读取使用次数统计 */
+export function loadUsageStats(): PlanUsageStats {
+  try {
+    const saved = localStorage.getItem(USAGE_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch { /* ignore */ }
+  return {};
+}
+
+/** 记录方案被加载一次 */
+export function recordPlanUsage(planId: string): void {
+  try {
+    const stats = loadUsageStats();
+    const existing = stats[planId] || { loadCount: 0, lastUsedAt: "" };
+    stats[planId] = {
+      loadCount: existing.loadCount + 1,
+      lastUsedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(USAGE_KEY, JSON.stringify(stats));
+  } catch { /* ignore */ }
+}
 
 /** 读取所有方案 */
 export function loadPlans(): ProductionPlan[] {

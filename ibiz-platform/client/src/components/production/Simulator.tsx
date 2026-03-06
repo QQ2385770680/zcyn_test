@@ -57,6 +57,7 @@ import {
 import { useDesignPlan, designToProductions, designToDecisions } from "@/lib/DesignPlanContext";
 import { loadDesignPlans, type DesignPlanConfig } from "@/lib/designerTypes";
 import { optimizeSinglePeriod, optimizeAllPeriods } from "@/lib/optimizer";
+import { recordPlanUsage } from "@/lib/planStorage";
 
 // ============================================================
 // Toast
@@ -206,6 +207,8 @@ export function ProductionSimulator() {
     setDecisions(newDecisions);
     setActiveDesign(plan);
     setDesignSource(plan.name || "未命名方案");
+    // 记录方案使用次数
+    recordPlanUsage(plan.id);
     showToast(`已加载方案「${plan.name}」`, "success");
   };
 

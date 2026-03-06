@@ -596,7 +596,7 @@ function PeriodAccordion({
       {/* 头部 */}
       <CollapsibleTrigger asChild>
         <div
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors ${
+          className={`flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors overflow-hidden ${
             isOpen
               ? "bg-emerald-50 border border-emerald-200"
               : passed
@@ -605,37 +605,36 @@ function PeriodAccordion({
           }`}
         >
           <ChevronDown
-            className={`size-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+            className={`size-4 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
           />
 
           {/* 期数标识 */}
-          <span className="text-lg font-bold text-emerald-700 w-10">P{period}</span>
+          <span className="text-base font-bold text-emerald-700 shrink-0">P{period}</span>
 
-          {/* 关键信息 */}
-          <div className="flex-1 flex items-center gap-4 text-sm">
-            <span className="text-muted-foreground">
-              <span className="font-medium text-foreground">第{period}期</span>
-              {" "}机器:{r.machines} | 可用人数:{r.totalAvailableWorkers.toFixed(1)}
-            </span>
+          {/* 关键信息 — 始终单行 */}
+          <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+            第{period}期 机器:{r.machines} | 人数:{r.totalAvailableWorkers.toFixed(1)}
             {activeDesign && (
-              <span className="text-muted-foreground">
-                {hiringDesc} | 解雇:{r.fired} | 雇佣:{r.hired}
-              </span>
+              <> | {hiringDesc} | 解雇:{r.fired} | 雇佣:{r.hired}</>
             )}
-          </div>
+          </span>
 
-          {/* 总产量 + 约束状态标识 */}
-          <span className="text-sm font-semibold mr-2 flex items-center gap-1.5">
-            总产量: <span className={totalOutput > 0 ? "text-emerald-700" : "text-muted-foreground"}>{totalOutput}</span>
-            {totalOutput > 0 && (() => {
+          {/* 弹性占位 */}
+          <div className="flex-1" />
+
+          {/* 总产量 + 约束状态 — 固定右侧 */}
+          <span className="text-xs font-semibold whitespace-nowrap shrink-0 flex items-center gap-1">
+            产量:<span className={totalOutput > 0 ? "text-emerald-700" : "text-muted-foreground"}>{totalOutput}</span>
+            {(() => {
               const cs = result.constraints;
               const vals = [cs.c1_workersAfterShift1, cs.c2_workersAfterOt1, cs.c4_workersAfterOt2, cs.c5_machinesAfterShift1, cs.c7_machinesAfterShift2, cs.c8_machinesAfterOt2];
               const hasFail = vals.some(v => v < -0.001);
               const hasWarn = vals.some(v => v > 5);
               const allPass = !hasFail && !hasWarn;
-              if (hasFail) return <span className="text-red-600 text-xs font-semibold">⊗ 超限</span>;
-              if (hasWarn) return <span className="text-amber-600 text-xs font-semibold">△ 偏大</span>;
-              if (allPass) return <span className="text-emerald-600 text-xs font-semibold">⊙ 达标</span>;
+              if (totalOutput === 0) return null;
+              if (hasFail) return <span className="text-red-600 text-[10px] font-semibold">⊗超限</span>;
+              if (hasWarn) return <span className="text-amber-600 text-[10px] font-semibold">△偏大</span>;
+              if (allPass) return <span className="text-emerald-600 text-[10px] font-semibold">⊙达标</span>;
               return null;
             })()}
           </span>
@@ -644,7 +643,7 @@ function PeriodAccordion({
           <Button
             variant="ghost"
             size="sm"
-            className={`h-7 text-xs ${activeDesign ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-gray-400 cursor-not-allowed"}`}
+            className={`h-6 px-2 text-[11px] shrink-0 ${activeDesign ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-gray-400 cursor-not-allowed"}`}
             disabled={!activeDesign}
             onClick={(e) => {
               e.stopPropagation();
@@ -652,7 +651,7 @@ function PeriodAccordion({
               onOptimize();
             }}
           >
-            <Zap className="size-3 mr-1" />
+            <Zap className="size-3 mr-0.5" />
             本期最优
           </Button>
         </div>
@@ -662,7 +661,7 @@ function PeriodAccordion({
       <CollapsibleContent>
         <div className="mt-1 p-4 border border-gray-200 rounded-lg bg-white space-y-4">
           {/* 资源信息行 */}
-          <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
+          <div className="grid grid-cols-7 gap-2">
             <ResourceCell label="本期机器" value={String(r.machines)} />
             <ResourceCell
               label="购买机器"
@@ -810,11 +809,11 @@ function ResourceCell({
   tag?: string;
 }) {
   return (
-    <div className="bg-gray-50 rounded-md px-3 py-2">
-      <div className="text-xs text-muted-foreground flex items-center gap-1">
+    <div className="bg-gray-50 rounded-md px-2 py-1.5">
+      <div className="text-[11px] text-muted-foreground whitespace-nowrap flex items-center gap-0.5">
         {label}
         {tag && (
-          <span className={`text-[10px] px-1 py-0.5 rounded ${
+          <span className={`text-[9px] px-0.5 rounded ${
             tag === "必填" ? "bg-amber-100 text-amber-700" :
             tag === "公式" ? "bg-blue-100 text-blue-700" :
             "bg-gray-100 text-gray-600"
@@ -823,7 +822,7 @@ function ResourceCell({
           </span>
         )}
       </div>
-      <div className="text-sm font-semibold text-foreground mt-0.5">{value}</div>
+      <div className="text-sm font-semibold text-foreground mt-0.5 whitespace-nowrap">{value}</div>
     </div>
   );
 }

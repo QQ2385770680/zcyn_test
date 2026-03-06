@@ -293,9 +293,16 @@ export function ProductionSimulator() {
         <div className="flex-1" />
 
         <Button
-          onClick={handleOptimizeAll}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white h-9"
+          onClick={() => {
+            if (!activeDesign) {
+              showToast("请先选择一个方案设计", "error");
+              return;
+            }
+            handleOptimizeAll();
+          }}
+          className={`h-9 ${activeDesign ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
           size="sm"
+          disabled={!activeDesign}
         >
           <Zap className="size-4 mr-1.5" />
           一键最优排产
@@ -617,9 +624,11 @@ function PeriodAccordion({
           <Button
             variant="ghost"
             size="sm"
-            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 h-7 text-xs"
+            className={`h-7 text-xs ${activeDesign ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50" : "text-gray-400 cursor-not-allowed"}`}
+            disabled={!activeDesign}
             onClick={(e) => {
               e.stopPropagation();
+              if (!activeDesign) return;
               onOptimize();
             }}
           >

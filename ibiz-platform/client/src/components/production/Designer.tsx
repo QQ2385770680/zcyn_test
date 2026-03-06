@@ -7,6 +7,9 @@
  * - 8 期雇佣策略配置（最大雇佣/最少解雇/平衡/不雇佣/自定义）
  * - 8 期机器购买配置（不买/固定/范围）
  * - 方案保存/加载/导出
+ * - 刷新保持缓存配置（localStorage 持久化当前编辑状态）
+ * - 固定行为模式规则标记显示绿色"固"
+ * - 已保存方案同步到我的方案
  */
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -99,6 +102,68 @@ const MACHINE_OPTIONS: { value: MachinePurchaseMode; label: string; desc: string
 ];
 
 // ============================================================
+// localStorage 缓存 key（当前编辑中的方案状态）
+// ============================================================
+
+const DRAFT_CACHE_KEY = "ibiz-designer-draft";
+const DRAFT_PERIOD_KEY = "ibiz-designer-current-period";
+const DRAFT_SECTION_KEY = "ibiz-designer-active-section";
+const DRAFT_PLAN_ID_KEY = "ibiz-designer-current-plan-id";
+
+/** 保存草稿到 localStorage */
+function saveDraftToCache(plan: DesignPlanConfig, currentPlanId: string | null, currentPeriod: number, activeSection: string) {
+  try {
+    localStorage.setItem(DRAFT_CACHE_KEY, JSON.stringify(plan));
+    localStorage.setItem(DRAFT_PERIOD_KEY, String(currentPeriod));
+    localStorage.setItem(DRAFT_SECTION_KEY, activeSection);
+    if (currentPlanId) {
+      localStorage.setItem(DRAFT_PLAN_ID_KEY, currentPlanId);
+    } else {
+      localStorage.removeItem(DRAFT_PLAN_ID_KEY);
+    }
+  } catch {
+    // 存储失败
+  }
+}
+
+/** 从 localStorage 加载草稿 */
+function loadDraftFromCache(periods: number): {
+  plan: DesignPlanConfig | null;
+  currentPlanId: string | null;
+  currentPeriod: number;
+  activeSection: string;
+} {
+  try {
+    const saved = localStorage.getItem(DRAFT_CACHE_KEY);
+    const period = parseInt(localStorage.getItem(DRAFT_PERIOD_KEY) || "1") || 1;
+    const section = localStorage.getItem(DRAFT_SECTION_KEY) || "production";
+    const planId = localStorage.getItem(DRAFT_PLAN_ID_KEY) || null;
+    if (saved) {
+      const parsed = JSON.parse(saved) as DesignPlanConfig;
+      // 验证数据完整性
+      if (parsed.periodProductions && parsed.periodHiring && parsed.periodMachines) {
+        return { plan: parsed, currentPlanId: planId, currentPeriod: Math.min(period, periods), activeSection: section };
+      }
+    }
+  } catch {
+    // 解析失败
+  }
+  return { plan: null, currentPlanId: null, currentPeriod: 1, activeSection: "production" };
+}
+
+/** 清除草稿缓存 */
+function clearDraftCache() {
+  try {
+    localStorage.removeItem(DRAFT_CACHE_KEY);
+    localStorage.removeItem(DRAFT_PERIOD_KEY);
+    localStorage.removeItem(DRAFT_SECTION_KEY);
+    localStorage.removeItem(DRAFT_PLAN_ID_KEY);
+  } catch {
+    // 清除失败
+  }
+}
+
+// ============================================================
 // Toast Hook
 // ============================================================
 
@@ -135,8 +200,12 @@ export function ProductionDesigner() {
   const { applyToSimulator } = useDesignPlan();
   const [, setLocation] = useLocation();
 
-  // 当前方案 — 初始化时所有期行为模式默认为留空
+  // 从缓存恢复草稿状态
+  const cachedDraft = React.useMemo(() => loadDraftFromCache(config.periods), []);
+
+  // 当前方案 — 优先从缓存恢复，否则初始化默认值
   const [plan, setPlan] = React.useState<DesignPlanConfig>(() => {
+    if (cachedDraft.plan) return cachedDraft.plan;
     const base = defaultDesignPlanConfig(config.periods);
     // 默认所有单元格行为模式为留空
     for (let p = 0; p < config.periods; p++) {
@@ -149,16 +218,24 @@ export function ProductionDesigner() {
     }
     return base;
   });
-  const [currentPlanId, setCurrentPlanId] = React.useState<string | null>(null);
+  const [currentPlanId, setCurrentPlanId] = React.useState<string | null>(cachedDraft.currentPlanId);
 
   // 当前选中的期数（Tab）
-  const [currentPeriod, setCurrentPeriod] = React.useState(1);
+  const [currentPeriod, setCurrentPeriod] = React.useState(cachedDraft.currentPeriod);
 
   // 当前视图 Tab
-  const [activeSection, setActiveSection] = React.useState("production");
+  const [activeSection, setActiveSection] = React.useState(cachedDraft.activeSection);
 
   // 保存的方案列表
   const [savedPlans, setSavedPlans] = React.useState(() => loadDesignPlans());
+
+  // 自动保存草稿到 localStorage（防抖）
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      saveDraftToCache(plan, currentPlanId, currentPeriod, activeSection);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [plan, currentPlanId, currentPeriod, activeSection]);
 
   // 期数导航
   const goToPrev = () => setCurrentPeriod(p => Math.max(1, p - 1));
@@ -411,7 +488,7 @@ export function ProductionDesigner() {
 
   return (
     <div className="space-y-5">
-      {/* Actions Bar */}
+      {/* Actions Bar — 顶部仅保留恢复/导入/导出和进入模拟验证 */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={initFromColorMap}>
@@ -428,10 +505,6 @@ export function ProductionDesigner() {
           </Button>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
-            <Save className="size-3.5" />
-            保存方案
-          </Button>
           <Button
             size="sm"
             className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
@@ -529,6 +602,14 @@ export function ProductionDesigner() {
             </div>
           </div>
 
+          {/* 保存方案按钮 — 移到复制所有期下方 */}
+          <div className="flex justify-end">
+            <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
+              <Save className="size-3.5" />
+              保存方案
+            </Button>
+          </div>
+
           {/* Mode Legend */}
           <div className="flex items-center gap-3 text-xs flex-wrap">
             <span className="text-gray-500 font-medium">行为模式：</span>
@@ -578,7 +659,7 @@ export function ProductionDesigner() {
                         {PRODUCTS.map((product, prodIdx) => {
                           const cell = currentProdConfig[shift.key][product];
                           // 规则标记根据当前行为模式动态变化
-                          const ruleColor: CellColor = cell.mode === "required" ? "required" : cell.mode === "optional" ? "optional" : cell.mode === "blank" ? "zero" : "free";
+                          const ruleColor: CellColor = cell.mode === "required" ? "required" : cell.mode === "optional" ? "optional" : cell.mode === "blank" ? "zero" : cell.mode === "fixed" ? "fixed" : "free";
                           const isFirstInGroup = prodIdx === 0;
                           return (
                             <tr
@@ -644,6 +725,14 @@ export function ProductionDesigner() {
         {/* 雇佣策略 Tab */}
         {/* ============================================================ */}
         <TabsContent value="hiring" className="space-y-4 mt-4">
+          {/* 保存方案按钮 */}
+          <div className="flex justify-end">
+            <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
+              <Save className="size-3.5" />
+              保存方案
+            </Button>
+          </div>
+
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -825,6 +914,14 @@ export function ProductionDesigner() {
         {/* 机器购买 Tab */}
         {/* ============================================================ */}
         <TabsContent value="machines" className="space-y-4 mt-4">
+          {/* 保存方案按钮 */}
+          <div className="flex justify-end">
+            <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
+              <Save className="size-3.5" />
+              保存方案
+            </Button>
+          </div>
+
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -991,7 +1088,7 @@ export function ProductionDesigner() {
 }
 
 // ============================================================
-// 子组件：规则颜色标记
+// 子组件：规则颜色标记（新增 fixed 类型：绿色"固"）
 // ============================================================
 
 function RuleColorBadge({ color }: { color: CellColor }) {
@@ -1001,6 +1098,7 @@ function RuleColorBadge({ color }: { color: CellColor }) {
     free: { bg: "bg-white border border-gray-300", label: "自" },
     disabled: { bg: "bg-gray-400", label: "禁" },
     zero: { bg: "bg-gray-200", label: "0" },
+    fixed: { bg: "bg-emerald-500", label: "固" },
   };
   const s = styles[color] || styles.free;
   return (
@@ -1012,7 +1110,7 @@ function RuleColorBadge({ color }: { color: CellColor }) {
           </span>
         </TooltipTrigger>
         <TooltipContent>
-          <p className="text-xs">规则表标记：{color}</p>
+          <p className="text-xs">规则表标记：{color === "fixed" ? "固定值" : color}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

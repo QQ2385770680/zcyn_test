@@ -3,13 +3,17 @@
  *
  * 功能：
  * - 查看已保存的方案列表（卡片网格）
+ * - 同时展示两种来源的方案：
+ *   1. planStorage 中的传统方案（ProductionPlan）
+ *   2. designerTypes 中的设计器方案（DesignPlan）— 标记为"设计器方案"
+ * - 设计器方案支持"编辑"按钮跳转到方案设计器并加载
  * - 创建新方案（弹窗输入名称和描述）
  * - 收藏/取消收藏方案
  * - 复制方案
  * - 删除方案
  * - 搜索方案
  *
- * 数据来源：localStorage（通过 planStorage 服务）
+ * 数据来源：localStorage（通过 planStorage 和 designerTypes 服务）
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +32,8 @@ import {
   ArrowUpDown,
   FileText,
   X,
+  Pencil,
+  Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -50,6 +56,12 @@ import {
   toggleStarPlan,
   formatRelativeTime,
 } from "@/lib/planStorage";
+import {
+  loadDesignPlans,
+  deleteDesignPlan,
+  type DesignPlanConfig,
+} from "@/lib/designerTypes";
+import { useLocation } from "wouter";
 
 const statusConfig: Record<PlanStatus, { label: string; className: string }> = {
   draft: { label: "草稿", className: "text-gray-600 border-gray-200 bg-gray-50" },
@@ -57,9 +69,26 @@ const statusConfig: Record<PlanStatus, { label: string; className: string }> = {
   submitted: { label: "已提交", className: "text-blue-600 border-blue-200 bg-blue-50" },
 };
 
+/** 统一方案类型，用于列表展示 */
+interface UnifiedPlan {
+  id: string;
+  name: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  starred: boolean;
+  source: "legacy" | "designer";
+  /** 传统方案数据 */
+  legacyPlan?: ProductionPlan;
+  /** 设计器方案数据 */
+  designPlan?: DesignPlanConfig & { id: string; createdAt: string; updatedAt: string };
+}
+
 export function ProductionPlans() {
   const { config } = useConfig();
+  const [, setLocation] = useLocation();
   const [plans, setPlans] = React.useState<ProductionPlan[]>([]);
+  const [designPlans, setDesignPlans] = React.useState<(DesignPlanConfig & { id: string; createdAt: string; updatedAt: string })[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   const [newPlanName, setNewPlanName] = React.useState("");
@@ -68,6 +97,7 @@ export function ProductionPlans() {
   // 加载方案列表
   const refreshPlans = React.useCallback(() => {
     setPlans(loadPlans());
+    setDesignPlans(loadDesignPlans());
   }, []);
 
   React.useEffect(() => {
@@ -85,25 +115,86 @@ export function ProductionPlans() {
   };
 
   // 删除方案
-  const handleDelete = (id: string) => {
-    deletePlan(id);
+  const handleDelete = (id: string, source: "legacy" | "designer") => {
+    if (source === "designer") {
+      deleteDesignPlan(id);
+    } else {
+      deletePlan(id);
+    }
     refreshPlans();
   };
 
-  // 复制方案
+  // 复制方案（仅传统方案支持）
   const handleDuplicate = (id: string) => {
     duplicatePlan(id);
     refreshPlans();
   };
 
-  // 收藏方案
+  // 收藏方案（仅传统方案支持）
   const handleToggleStar = (id: string) => {
     toggleStarPlan(id);
     refreshPlans();
   };
 
+  // 编辑设计器方案：将方案数据写入缓存并跳转到设计器
+  const handleEditDesignPlan = (dp: DesignPlanConfig & { id: string; createdAt: string; updatedAt: string }) => {
+    // 将方案数据写入设计器草稿缓存
+    try {
+      const planConfig: DesignPlanConfig = {
+        name: dp.name,
+        description: dp.description,
+        periodProductions: dp.periodProductions,
+        periodHiring: dp.periodHiring,
+        periodMachines: dp.periodMachines,
+      };
+      localStorage.setItem("ibiz-designer-draft", JSON.stringify(planConfig));
+      localStorage.setItem("ibiz-designer-current-plan-id", dp.id);
+      localStorage.setItem("ibiz-designer-current-period", "1");
+      localStorage.setItem("ibiz-designer-active-section", "production");
+    } catch {
+      // 写入失败
+    }
+    // 跳转到方案设计器
+    setLocation("/production/designer");
+  };
+
+  // 合并两种来源的方案为统一列表
+  const unifiedPlans: UnifiedPlan[] = React.useMemo(() => {
+    const result: UnifiedPlan[] = [];
+
+    // 传统方案
+    for (const p of plans) {
+      result.push({
+        id: p.id,
+        name: p.name,
+        description: p.description,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        starred: p.starred,
+        source: "legacy",
+        legacyPlan: p,
+      });
+    }
+
+    // 设计器方案
+    for (const dp of designPlans) {
+      result.push({
+        id: dp.id,
+        name: dp.name,
+        description: dp.description,
+        createdAt: dp.createdAt,
+        updatedAt: dp.updatedAt,
+        starred: false,
+        source: "designer",
+        designPlan: dp,
+      });
+    }
+
+    return result;
+  }, [plans, designPlans]);
+
   // 搜索过滤
-  const filteredPlans = plans.filter(
+  const filteredPlans = unifiedPlans.filter(
     (p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.description.toLowerCase().includes(searchQuery.toLowerCase())
@@ -130,7 +221,7 @@ export function ProductionPlans() {
         </div>
         <div className="flex gap-2">
           <Badge variant="outline" className="text-gray-500">
-            {plans.length} 个方案
+            {unifiedPlans.length} 个方案
           </Badge>
           <Button
             size="sm"
@@ -210,7 +301,7 @@ export function ProductionPlans() {
             <p className="text-xs text-gray-400 mb-4">
               {searchQuery
                 ? "没有找到匹配的方案，请尝试其他关键词"
-                : "点击「新建方案」开始创建您的第一个生产决策方案"}
+                : "点击「新建方案」或在方案设计中保存方案"}
             </p>
             {!searchQuery && (
               <Button
@@ -226,13 +317,14 @@ export function ProductionPlans() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sortedPlans.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              onDelete={handleDelete}
-              onDuplicate={handleDuplicate}
-              onToggleStar={handleToggleStar}
+          {sortedPlans.map((up) => (
+            <UnifiedPlanCard
+              key={`${up.source}-${up.id}`}
+              plan={up}
+              onDelete={(id) => handleDelete(id, up.source)}
+              onDuplicate={up.source === "legacy" ? handleDuplicate : undefined}
+              onToggleStar={up.source === "legacy" ? handleToggleStar : undefined}
+              onEdit={up.source === "designer" && up.designPlan ? () => handleEditDesignPlan(up.designPlan!) : undefined}
             />
           ))}
 
@@ -254,27 +346,46 @@ export function ProductionPlans() {
   );
 }
 
-function PlanCard({
+function UnifiedPlanCard({
   plan,
   onDelete,
   onDuplicate,
   onToggleStar,
+  onEdit,
 }: {
-  plan: ProductionPlan;
+  plan: UnifiedPlan;
   onDelete: (id: string) => void;
-  onDuplicate: (id: string) => void;
-  onToggleStar: (id: string) => void;
+  onDuplicate?: (id: string) => void;
+  onToggleStar?: (id: string) => void;
+  onEdit?: () => void;
 }) {
-  const sc = statusConfig[plan.status];
-  const totalProduction = plan.periodProductions.reduce((sum, pp) => {
-    return (
-      sum +
-      pp.shift1.A + pp.shift1.B + pp.shift1.C + pp.shift1.D +
-      pp.ot1.A + pp.ot1.B + pp.ot1.C + pp.ot1.D +
-      pp.shift2.A + pp.shift2.B + pp.shift2.C + pp.shift2.D +
-      pp.ot2.A + pp.ot2.B + pp.ot2.C + pp.ot2.D
-    );
-  }, 0);
+  const isDesigner = plan.source === "designer";
+
+  // 计算总产量（传统方案）
+  let totalProduction = 0;
+  if (plan.legacyPlan) {
+    totalProduction = plan.legacyPlan.periodProductions.reduce((sum, pp) => {
+      return (
+        sum +
+        pp.shift1.A + pp.shift1.B + pp.shift1.C + pp.shift1.D +
+        pp.ot1.A + pp.ot1.B + pp.ot1.C + pp.ot1.D +
+        pp.shift2.A + pp.shift2.B + pp.shift2.C + pp.shift2.D +
+        pp.ot2.A + pp.ot2.B + pp.ot2.C + pp.ot2.D
+      );
+    }, 0);
+  }
+
+  // 计算设计器方案的配置统计
+  let designStats = { required: 0, optional: 0, blank: 0, fixed: 0 };
+  if (plan.designPlan) {
+    for (const period of plan.designPlan.periodProductions) {
+      for (const shiftKey of ["shift1", "ot1", "shift2", "ot2"] as const) {
+        for (const product of ["A", "B", "C", "D"] as const) {
+          designStats[period[shiftKey][product].mode]++;
+        }
+      }
+    }
+  }
 
   return (
     <Card className="group hover:shadow-md transition-all duration-200 border-gray-100">
@@ -300,14 +411,24 @@ function PlanCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onToggleStar(plan.id)}>
-                <Star className="size-4" />
-                {plan.starred ? "取消收藏" : "收藏"}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDuplicate(plan.id)}>
-                <Copy className="size-4" />
-                复制
-              </DropdownMenuItem>
+              {onEdit && (
+                <DropdownMenuItem onClick={onEdit}>
+                  <Pencil className="size-4" />
+                  编辑方案
+                </DropdownMenuItem>
+              )}
+              {onToggleStar && (
+                <DropdownMenuItem onClick={() => onToggleStar(plan.id)}>
+                  <Star className="size-4" />
+                  {plan.starred ? "取消收藏" : "收藏"}
+                </DropdownMenuItem>
+              )}
+              {onDuplicate && (
+                <DropdownMenuItem onClick={() => onDuplicate(plan.id)}>
+                  <Copy className="size-4" />
+                  复制
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
@@ -322,23 +443,58 @@ function PlanCard({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center gap-2">
-          <Badge variant="outline" className={sc.className}>
-            {sc.label}
-          </Badge>
+          {isDesigner ? (
+            <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 gap-1">
+              <Sparkles className="size-3" />
+              设计器方案
+            </Badge>
+          ) : (
+            <Badge variant="outline" className={statusConfig[plan.legacyPlan?.status || "draft"].className}>
+              {statusConfig[plan.legacyPlan?.status || "draft"].label}
+            </Badge>
+          )}
           <span className="text-xs text-gray-400 flex items-center gap-1">
             <Clock className="size-3" />
             {formatRelativeTime(plan.updatedAt)}
           </span>
         </div>
         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <span>{plan.config.periods} 期</span>
-          </div>
-          <div className="flex items-center gap-1 text-sm font-medium text-emerald-600">
-            <TrendingUp className="size-3.5" />
-            {totalProduction.toLocaleString()} 单位
-          </div>
+          {isDesigner ? (
+            <>
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <span>{plan.designPlan?.periodProductions.length || 8} 期</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-amber-600">必{designStats.required}</span>
+                <span className="text-sky-600">选{designStats.optional}</span>
+                <span className="text-emerald-600">固{designStats.fixed}</span>
+                <span className="text-gray-400">空{designStats.blank}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <span>{plan.legacyPlan?.config.periods || 8} 期</span>
+              </div>
+              <div className="flex items-center gap-1 text-sm font-medium text-emerald-600">
+                <TrendingUp className="size-3.5" />
+                {totalProduction.toLocaleString()} 单位
+              </div>
+            </>
+          )}
         </div>
+        {/* 设计器方案显示编辑按钮 */}
+        {onEdit && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full gap-1.5 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+            onClick={onEdit}
+          >
+            <Pencil className="size-3" />
+            编辑方案
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

@@ -188,7 +188,7 @@ export interface PeriodResult {
  * - 'disabled': 暗色，禁区不可填
  * - 'zero': 无颜色且值为0
  */
-export type CellColor = "required" | "optional" | "free" | "disabled" | "zero";
+export type CellColor = "required" | "optional" | "free" | "disabled" | "zero" | "fixed";
 
 /** 单期的颜色映射矩阵 [产品][班次] */
 export type PeriodColorMap = Record<string, Record<string, CellColor>>;

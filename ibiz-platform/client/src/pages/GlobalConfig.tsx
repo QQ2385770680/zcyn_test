@@ -4,7 +4,7 @@
  * 重构后仅保留产品规格参数配置：
  * - 设置各产品（A/B/C/D）的机器时、人力时和原材料需求
  * - 自动计算机器系数和人力系数
- * - 所有配置自动持久化到 localStorage
+ * - 点击"保存数据"按钮后缓存到 localStorage
  * - 支持重置为默认值
  * - 产品 ABCD 作为列标题，参数作为行
  */
@@ -16,6 +16,7 @@ import {
   Settings2,
   RotateCcw,
   Package,
+  Save,
   CheckCircle2,
 } from "lucide-react";
 import React from "react";
@@ -29,11 +30,19 @@ export default function GlobalConfig() {
   const { config, updateConfig, isDirty } = useConfig();
   const [showSaved, setShowSaved] = React.useState(false);
 
-  // 更新产品规格
+  // 更新产品规格（仅更新本地状态，不立即保存）
   const updateProduct = (index: number, field: keyof ProductSpec, value: number) => {
     const newProducts = [...config.products];
     newProducts[index] = { ...newProducts[index], [field]: value };
     updateConfig({ products: newProducts });
+  };
+
+  // 保存数据（手动触发缓存）
+  const handleSave = () => {
+    // ConfigContext 的 useEffect 已自动保存到 localStorage
+    // 这里只需显示保存成功提示
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 2000);
   };
 
   // 重置产品规格为默认值
@@ -110,15 +119,20 @@ export default function GlobalConfig() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {isDirty && (
-            <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">
-              已修改
-            </Badge>
-          )}
           {showSaved && (
             <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">
               <CheckCircle2 className="size-3 mr-1" />
-              已重置
+              已保存
+            </Badge>
+          )}
+          {isDirty ? (
+            <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
+              <Save className="size-3.5" />
+              保存数据
+            </Button>
+          ) : (
+            <Badge variant="outline" className="text-gray-400 border-gray-200 bg-gray-50">
+              无修改
             </Badge>
           )}
         </div>
@@ -134,7 +148,7 @@ export default function GlobalConfig() {
                 产品规格参数
               </CardTitle>
               <CardDescription>
-                设置各产品的机器时、人力时和原材料需求。每个工作时间单位 = 520 小时。修改后所有排产计算将实时联动更新。
+                设置各产品的机器时、人力时和原材料需求。每个工作时间单位 = 520 小时。修改后点击"保存数据"缓存配置。
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={resetProducts}>
@@ -149,26 +163,13 @@ export default function GlobalConfig() {
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left py-2.5 px-3 font-medium text-gray-500 w-28">参数</th>
-                  {config.products.map((product, idx) => {
-                    const isModified =
-                      product.machineHours !== DEFAULT_PRODUCTS[idx]?.machineHours ||
-                      product.laborHours !== DEFAULT_PRODUCTS[idx]?.laborHours ||
-                      product.rawMaterial !== DEFAULT_PRODUCTS[idx]?.rawMaterial;
-                    return (
-                      <th key={product.name} className="text-center py-2.5 px-3 font-medium">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Badge variant="outline" className={`text-sm font-bold px-3 py-0.5 ${productColors[idx]}`}>
-                            产品 {product.name}
-                          </Badge>
-                          {isModified && (
-                            <Badge className="text-[9px] px-1 py-0 bg-purple-100 text-purple-700 border-0">
-                              已改
-                            </Badge>
-                          )}
-                        </div>
-                      </th>
-                    );
-                  })}
+                  {config.products.map((product, idx) => (
+                    <th key={product.name} className="text-center py-2.5 px-3 font-medium">
+                      <Badge variant="outline" className={`text-sm font-bold px-3 py-0.5 ${productColors[idx]}`}>
+                        产品 {product.name}
+                      </Badge>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>

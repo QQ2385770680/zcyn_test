@@ -101,7 +101,18 @@ export function AppSidebar() {
               <Collapsible open={productionOpen} onOpenChange={setProductionOpen}>
                 <SidebarMenuItem>
                   <CollapsibleTrigger asChild>
-                    <SidebarMenuButton isActive={isProductionActive} tooltip="生产决策">
+                    <SidebarMenuButton
+                      isActive={isProductionActive}
+                      tooltip="生产决策"
+                      onClick={() => {
+                        // 侧边栏缩进时点击直接跳转到生产模拟页
+                        const sidebar = document.querySelector('[data-state]');
+                        const isCollapsed = sidebar?.getAttribute('data-state') === 'collapsed';
+                        if (isCollapsed) {
+                          setLocation("/production/simulator");
+                        }
+                      }}
+                    >
                       <Factory className="size-4" />
                       <span>生产决策</span>
                       <ChevronDown

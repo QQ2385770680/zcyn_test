@@ -174,13 +174,11 @@ export default function GlobalConfig() {
               <tbody>
                 {paramRows.map((row) => (
                   <tr key={row.label} className="border-b border-gray-50 hover:bg-gray-50/50">
-                    <td className="py-2.5 px-3">
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium text-gray-700">{row.label}</span>
-                        {row.unit && (
-                          <span className="text-xs text-gray-400">({row.unit})</span>
-                        )}
-                      </div>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className="font-medium text-gray-700">{row.label}</span>
+                      {row.unit && (
+                        <span className="text-xs text-gray-400 ml-1">({row.unit})</span>
+                      )}
                     </td>
                     {config.products.map((product, index) => (
                       <td key={product.name} className="py-2.5 px-3 text-center">

@@ -105,6 +105,14 @@ export interface PeriodHiringConfig {
   customHired: number;
   /** 自定义解雇人数（仅 mode='custom' 时有效） */
   customFired: number;
+  /** 自定义雇佣范围最小值（仅 mode='custom' 时有效） */
+  hiredRangeMin: number;
+  /** 自定义雇佣范围最大值（仅 mode='custom' 时有效） */
+  hiredRangeMax: number;
+  /** 自定义解雇范围最小值（仅 mode='custom' 时有效） */
+  firedRangeMin: number;
+  /** 自定义解雇范围最大值（仅 mode='custom' 时有效） */
+  firedRangeMax: number;
 }
 
 /** 创建默认雇佣策略 */
@@ -113,6 +121,10 @@ export function defaultHiringConfig(): PeriodHiringConfig {
     mode: "max-hire",
     customHired: 0,
     customFired: 0,
+    hiredRangeMin: 0,
+    hiredRangeMax: 50,
+    firedRangeMin: 0,
+    firedRangeMax: 20,
   };
 }
 
@@ -173,11 +185,11 @@ export function defaultDesignPlanConfig(periods: number = 8): DesignPlanConfig {
     name: "",
     description: "",
     periodProductions: Array.from({ length: periods }, () => defaultPeriodProductionConfig()),
-    periodHiring: Array.from({ length: periods }, (_, i) => {
+    periodHiring: Array.from({ length: periods }, (_, i): PeriodHiringConfig => {
       // 默认雇佣策略：P1-P3 最大雇佣，P4 不雇佣，P5-P8 平衡
-      if (i < 3) return { ...defaultHiringConfig(), mode: "max-hire" as HiringMode };
-      if (i === 3) return { ...defaultHiringConfig(), mode: "no-hire" as HiringMode };
-      return { ...defaultHiringConfig(), mode: "balance" as HiringMode };
+      if (i < 3) return { ...defaultHiringConfig(), mode: "max-hire" };
+      if (i === 3) return { ...defaultHiringConfig(), mode: "no-hire" };
+      return { ...defaultHiringConfig(), mode: "balance" };
     }),
     periodMachines: Array.from({ length: periods }, () => defaultMachineConfig()),
   };

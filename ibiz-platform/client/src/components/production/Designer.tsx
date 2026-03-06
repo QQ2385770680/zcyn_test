@@ -57,6 +57,7 @@ import {
   type DesignPlanConfig,
   defaultDesignPlanConfig,
   defaultCellConfig,
+  defaultHiringConfig,
   saveDesignPlan,
   loadDesignPlans,
   deleteDesignPlan,
@@ -694,26 +695,80 @@ export function ProductionDesigner() {
                           </td>
                           <td className="px-3 py-2.5">
                             {h.mode === "custom" ? (
-                              <div className="flex items-center gap-3">
+                              <div className="flex flex-col gap-2">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-gray-500">雇佣</span>
+                                  <span className="text-xs text-gray-500 w-8 shrink-0">雇佣</span>
                                   <Input
                                     type="number"
-                                    className="h-7 w-20 text-xs"
-                                    value={h.customHired || ""}
-                                    onChange={(e) => updateHiringCustom(i, "customHired", parseInt(e.target.value))}
+                                    className="h-7 w-16 text-xs text-center"
+                                    value={h.hiredRangeMin ?? 0}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      setPlan(prev => {
+                                        const next = { ...prev };
+                                        const hiring = [...next.periodHiring];
+                                        hiring[i] = { ...hiring[i], hiredRangeMin: val };
+                                        next.periodHiring = hiring;
+                                        return next;
+                                      });
+                                    }}
                                     placeholder="0"
+                                    min={0}
+                                  />
+                                  <span className="text-xs text-gray-400">~</span>
+                                  <Input
+                                    type="number"
+                                    className="h-7 w-16 text-xs text-center"
+                                    value={h.hiredRangeMax ?? 50}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      setPlan(prev => {
+                                        const next = { ...prev };
+                                        const hiring = [...next.periodHiring];
+                                        hiring[i] = { ...hiring[i], hiredRangeMax: val };
+                                        next.periodHiring = hiring;
+                                        return next;
+                                      });
+                                    }}
+                                    placeholder="50"
                                     min={0}
                                   />
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-gray-500">解雇</span>
+                                  <span className="text-xs text-gray-500 w-8 shrink-0">解雇</span>
                                   <Input
                                     type="number"
-                                    className="h-7 w-20 text-xs"
-                                    value={h.customFired || ""}
-                                    onChange={(e) => updateHiringCustom(i, "customFired", parseInt(e.target.value))}
+                                    className="h-7 w-16 text-xs text-center"
+                                    value={h.firedRangeMin ?? 0}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      setPlan(prev => {
+                                        const next = { ...prev };
+                                        const hiring = [...next.periodHiring];
+                                        hiring[i] = { ...hiring[i], firedRangeMin: val };
+                                        next.periodHiring = hiring;
+                                        return next;
+                                      });
+                                    }}
                                     placeholder="0"
+                                    min={0}
+                                  />
+                                  <span className="text-xs text-gray-400">~</span>
+                                  <Input
+                                    type="number"
+                                    className="h-7 w-16 text-xs text-center"
+                                    value={h.firedRangeMax ?? 20}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value) || 0;
+                                      setPlan(prev => {
+                                        const next = { ...prev };
+                                        const hiring = [...next.periodHiring];
+                                        hiring[i] = { ...hiring[i], firedRangeMax: val };
+                                        next.periodHiring = hiring;
+                                        return next;
+                                      });
+                                    }}
+                                    placeholder="20"
                                     min={0}
                                   />
                                 </div>
@@ -739,7 +794,7 @@ export function ProductionDesigner() {
             <Button variant="outline" size="sm" className="text-xs" onClick={() => {
               setPlan(prev => ({
                 ...prev,
-                periodHiring: prev.periodHiring.map(() => ({ mode: "max-hire" as HiringMode, customHired: 0, customFired: 0 })),
+                periodHiring: prev.periodHiring.map(() => ({ ...defaultHiringConfig(), mode: "max-hire" as HiringMode })),
               }));
               showToast("已将所有期设为「最大雇佣」", "info");
             }}>
@@ -748,7 +803,7 @@ export function ProductionDesigner() {
             <Button variant="outline" size="sm" className="text-xs" onClick={() => {
               setPlan(prev => ({
                 ...prev,
-                periodHiring: prev.periodHiring.map(() => ({ mode: "balance" as HiringMode, customHired: 0, customFired: 0 })),
+                periodHiring: prev.periodHiring.map(() => ({ ...defaultHiringConfig(), mode: "balance" as HiringMode })),
               }));
               showToast("已将所有期设为「雇佣=解雇」", "info");
             }}>

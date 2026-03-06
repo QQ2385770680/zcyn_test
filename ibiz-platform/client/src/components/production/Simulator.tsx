@@ -243,11 +243,9 @@ export function ProductionSimulator() {
   };
 
   const handleResetAll = () => {
+    // 仅重置每期产品排产数量（必填和选填格）为0，其余参数保持不变
     setProductions(Array.from({ length: config.periods }, () => emptyPeriodProduction()));
-    setDecisions(generateDefaultDecisions(config));
-    setActiveDesign(null);
-    setDesignSource(null);
-    showToast("所有数据已重置", "info");
+    showToast("每期排产数量已重置", "info");
   };
 
   // ============================================================

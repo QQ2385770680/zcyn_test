@@ -89,7 +89,7 @@ const MODE_OPTIONS: { value: ProductionMode; label: string; color: string; desc:
 
 const HIRING_OPTIONS: { value: HiringMode; label: string; desc: string }[] = [
   { value: "max-hire", label: "最大雇佣", desc: "雇佣上限人数" },
-  { value: "balance", label: "雇佣=解雇", desc: "雇佣人数等于解雇人数" },
+  { value: "balance", label: "雇佣=解雇", desc: "维持人数平衡" },
   { value: "flexible", label: "灵活调整", desc: "模拟中手动输入雇佣人数" },
   { value: "range", label: "范围求解", desc: "设定范围由求解器决定" },
   { value: "fixed", label: "固定值", desc: "指定固定雇佣人数" },
@@ -626,6 +626,71 @@ export function ProductionDesigner() {
             </Button>
           </div>
 
+          {/* 批量设置按钮 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 font-medium">当前期批量设置：</span>
+            <Button variant="outline" size="sm" className="h-7 text-xs px-2.5" onClick={() => {
+              setPlan(prev => {
+                const next = { ...prev };
+                const pIdx = currentPeriod - 1;
+                const periodConfig = { ...next.periodProductions[pIdx] };
+                for (const shiftKey of ["shift1", "ot1", "shift2", "ot2"] as const) {
+                  const shift = { ...periodConfig[shiftKey] };
+                  for (const product of ["A", "B", "C", "D"] as const) {
+                    shift[product] = { ...shift[product], mode: "blank" as ProductionMode };
+                  }
+                  periodConfig[shiftKey] = shift;
+                }
+                next.periodProductions = [...next.periodProductions];
+                next.periodProductions[pIdx] = periodConfig;
+                return next;
+              });
+              showToast(`第 ${currentPeriod} 期已设为全部不填`, "info");
+            }}>
+              全部不填
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs px-2.5" onClick={() => {
+              setPlan(prev => {
+                const next = { ...prev };
+                const pIdx = currentPeriod - 1;
+                const periodConfig = { ...next.periodProductions[pIdx] };
+                for (const shiftKey of ["shift1", "ot1", "shift2", "ot2"] as const) {
+                  const shift = { ...periodConfig[shiftKey] };
+                  for (const product of ["A", "B", "C", "D"] as const) {
+                    shift[product] = { ...shift[product], mode: "optional" as ProductionMode };
+                  }
+                  periodConfig[shiftKey] = shift;
+                }
+                next.periodProductions = [...next.periodProductions];
+                next.periodProductions[pIdx] = periodConfig;
+                return next;
+              });
+              showToast(`第 ${currentPeriod} 期已设为全部选填`, "info");
+            }}>
+              全部选填
+            </Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs px-2.5" onClick={() => {
+              setPlan(prev => {
+                const next = { ...prev };
+                const pIdx = currentPeriod - 1;
+                const periodConfig = { ...next.periodProductions[pIdx] };
+                for (const shiftKey of ["shift1", "ot1", "shift2", "ot2"] as const) {
+                  const shift = { ...periodConfig[shiftKey] };
+                  for (const product of ["A", "B", "C", "D"] as const) {
+                    shift[product] = { ...shift[product], mode: "required" as ProductionMode };
+                  }
+                  periodConfig[shiftKey] = shift;
+                }
+                next.periodProductions = [...next.periodProductions];
+                next.periodProductions[pIdx] = periodConfig;
+                return next;
+              });
+              showToast(`第 ${currentPeriod} 期已设为全部必填`, "info");
+            }}>
+              全部必填
+            </Button>
+          </div>
+
           {/* Mode Legend */}
           <div className="flex items-center gap-3 text-xs flex-wrap">
             <span className="text-gray-500 font-medium">行为模式：</span>
@@ -860,7 +925,7 @@ export function ProductionDesigner() {
                             )}
                           </td>
                           <td className="px-3 py-2.5">
-                            <span className="text-xs text-gray-400">{opt?.desc}</span>
+                            <span className="text-xs text-gray-400 whitespace-nowrap">{opt?.desc}</span>
                           </td>
                         </tr>
                       );
@@ -903,9 +968,13 @@ export function ProductionDesigner() {
             <Button variant="outline" size="sm" className="text-xs" onClick={() => {
               setPlan(prev => ({
                 ...prev,
-                periodHiring: defaultDesignPlanConfig(config.periods).periodHiring,
+                periodHiring: Array.from({ length: config.periods }, (_, i) => {
+                  if (i < 3) return { ...defaultHiringConfig(), mode: "max-hire" as HiringMode };
+                  if (i === 3) return { ...defaultHiringConfig(), mode: "flexible" as HiringMode };
+                  return { ...defaultHiringConfig(), mode: "balance" as HiringMode };
+                }),
               }));
-              showToast("已恢复默认雇佣策略（全部最大雇佣）", "info");
+              showToast("已恢复默认：前3期最大雇佣、第4期灵活调整、第5期起雇佣=解雇", "info");
             }}>
               恢复默认
             </Button>

@@ -119,28 +119,98 @@ function constraintBg(value: number): string {
 // 主组件
 // ============================================================
 
+// ============================================================
+// 模拟器状态缓存 key
+// ============================================================
+const SIM_CACHE_KEY = "ibiz-sim-cache";
+
+interface SimCacheData {
+  productions: PeriodProduction[];
+  decisions: PeriodDecision[];
+  activeDesign: DesignPlanConfig | null;
+  designSource: string | null;
+  selectedPlanId: string | undefined;
+  openPeriods: number[];
+  initialMachines: number;
+  initialWorkers: number;
+}
+
+function saveSimCache(data: SimCacheData) {
+  try {
+    localStorage.setItem(SIM_CACHE_KEY, JSON.stringify(data));
+  } catch { /* 存储失败 */ }
+}
+
+function loadSimCache(): SimCacheData | null {
+  try {
+    const saved = localStorage.getItem(SIM_CACHE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as SimCacheData;
+      if (parsed.productions && parsed.decisions) return parsed;
+    }
+  } catch { /* 解析失败 */ }
+  return null;
+}
+
 export function ProductionSimulator() {
   const { config, updateConfig } = useConfig();
   const { showToast, ToastComponent } = useToast();
   const { consumeSimData } = useDesignPlan();
 
+  // 从缓存恢复状态
+  const cachedSim = React.useMemo(() => loadSimCache(), []);
+
   // 展开的期数集合
-  const [openPeriods, setOpenPeriods] = React.useState<Set<number>>(new Set([1]));
+  const [openPeriods, setOpenPeriods] = React.useState<Set<number>>(
+    () => new Set(cachedSim?.openPeriods ?? [1])
+  );
 
   // 当前加载的设计方案
-  const [activeDesign, setActiveDesign] = React.useState<DesignPlanConfig | null>(null);
-  const [designSource, setDesignSource] = React.useState<string | null>(null);
-  const [selectedPlanId, setSelectedPlanId] = React.useState<string | undefined>(undefined);
+  const [activeDesign, setActiveDesign] = React.useState<DesignPlanConfig | null>(
+    cachedSim?.activeDesign ?? null
+  );
+  const [designSource, setDesignSource] = React.useState<string | null>(
+    cachedSim?.designSource ?? null
+  );
+  const [selectedPlanId, setSelectedPlanId] = React.useState<string | undefined>(
+    cachedSim?.selectedPlanId ?? undefined
+  );
 
   // 各期排产数据
   const [productions, setProductions] = React.useState<PeriodProduction[]>(() =>
-    Array.from({ length: config.periods }, () => emptyPeriodProduction())
+    cachedSim?.productions ?? Array.from({ length: config.periods }, () => emptyPeriodProduction())
   );
 
   // 各期资源决策
   const [decisions, setDecisions] = React.useState<PeriodDecision[]>(() =>
-    generateDefaultDecisions(config)
+    cachedSim?.decisions ?? generateDefaultDecisions(config)
   );
+
+  // 恢复缓存的初始参数
+  React.useEffect(() => {
+    if (cachedSim && cachedSim.initialMachines !== undefined && cachedSim.initialWorkers !== undefined) {
+      if (config.initialMachines !== cachedSim.initialMachines || config.initialWorkers !== cachedSim.initialWorkers) {
+        updateConfig({ initialMachines: cachedSim.initialMachines, initialWorkers: cachedSim.initialWorkers });
+      }
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 自动保存缓存（防抖）
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      saveSimCache({
+        productions,
+        decisions,
+        activeDesign,
+        designSource,
+        selectedPlanId,
+        openPeriods: Array.from(openPeriods),
+        initialMachines: config.initialMachines,
+        initialWorkers: config.initialWorkers,
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [productions, decisions, activeDesign, designSource, selectedPlanId, openPeriods, config.initialMachines, config.initialWorkers]);
 
   // 检查是否有来自设计器/我的方案的待应用数据
   React.useEffect(() => {
@@ -222,8 +292,15 @@ export function ProductionSimulator() {
 
   const handleOptimizeAll = () => {
     const result = solveOptimal(config, activeDesign);
+    // 保留灵活调整模式下用户手动输入的雇佣人数
+    const mergedDecisions = result.decisions.map((d, i) => {
+      if (activeDesign?.periodHiring[i]?.mode === "flexible") {
+        return { ...d, hired: decisions[i].hired, fired: d.fired };
+      }
+      return d;
+    });
     setProductions(result.productions);
-    setDecisions(result.decisions);
+    setDecisions(mergedDecisions);
     showToast(`已完成全局最优排产（耗时 ${result.elapsed.toFixed(1)}ms，A-B差=${result.balance.abDiff}，C-D差=${result.balance.cdDiff}）`, "success");
   };
 
@@ -246,6 +323,8 @@ export function ProductionSimulator() {
   const handleResetAll = () => {
     // 仅重置每期产品排产数量（必填和选填格）为0，其余参数保持不变
     setProductions(Array.from({ length: config.periods }, () => emptyPeriodProduction()));
+    // 清除缓存
+    try { localStorage.removeItem(SIM_CACHE_KEY); } catch { /* ignore */ }
     showToast("每期排产数量已重置", "info");
   };
 
@@ -702,7 +781,7 @@ function PeriodAccordion({
                       const val = Math.max(0, Math.min(r.maxHire, parseInt(e.target.value) || 0));
                       onUpdateHired(periodIdx, val);
                     }}
-                    className="h-6 w-14 text-xs text-center bg-white border-blue-300 focus:border-blue-500"
+                    className="h-6 w-20 text-xs text-center bg-white border-blue-300 focus:border-blue-500"
                     placeholder="0"
                   />
                 </div>

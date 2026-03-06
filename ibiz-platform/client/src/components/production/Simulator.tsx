@@ -336,40 +336,33 @@ export function ProductionSimulator() {
         </span>
       </div>
 
-      {/* ===== 初始参数（P1上方） ===== */}
-      <Card className="border-amber-200 bg-amber-50/30">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Factory className="size-4 text-amber-600" />
-            <span className="text-sm font-semibold text-amber-800">初始参数</span>
-            <Badge variant="outline" className="text-[10px] h-5 border-amber-300 text-amber-700">必填</Badge>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs text-amber-700 font-medium">初始工人数</label>
-              <Input
-                type="number"
-                min={0}
-                value={config.initialWorkers || ""}
-                onChange={(e) => updateConfig({ initialWorkers: parseInt(e.target.value) || 0 })}
-                className="h-8 text-sm bg-white border-amber-300 focus:border-amber-500"
-                placeholder="如：113"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-amber-700 font-medium">初始机器数</label>
-              <Input
-                type="number"
-                min={0}
-                value={config.initialMachines || ""}
-                onChange={(e) => updateConfig({ initialMachines: parseInt(e.target.value) || 0 })}
-                className="h-8 text-sm bg-white border-amber-300 focus:border-amber-500"
-                placeholder="如：157"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ===== 一期初始参数（紧凑单行） ===== */}
+      <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-amber-200 bg-amber-50/40">
+        <span className="text-xs font-semibold text-amber-800 whitespace-nowrap">一期初始参数</span>
+        <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-amber-300 text-amber-700">必填</Badge>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-amber-700">工人数</label>
+          <Input
+            type="number"
+            min={0}
+            value={config.initialWorkers || ""}
+            onChange={(e) => updateConfig({ initialWorkers: parseInt(e.target.value) || 0 })}
+            className="h-7 w-20 text-sm text-center bg-white border-amber-300 focus:border-amber-500"
+            placeholder="113"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-amber-700">机器数</label>
+          <Input
+            type="number"
+            min={0}
+            value={config.initialMachines || ""}
+            onChange={(e) => updateConfig({ initialMachines: parseInt(e.target.value) || 0 })}
+            className="h-7 w-20 text-sm text-center bg-white border-amber-300 focus:border-amber-500"
+            placeholder="157"
+          />
+        </div>
+      </div>
 
       {/* ===== 1-8期 Accordion ===== */}
       <div className="space-y-2">
@@ -718,36 +711,44 @@ function PeriodAccordion({
                     {totalOutput}
                   </td>
                 </tr>
+
+                {/* 可用人数行（借鉴 wuushuang 布局） */}
+                <tr className="border-t border-dashed border-gray-200">
+                  <td className="py-1.5 pr-2 text-xs text-muted-foreground whitespace-nowrap">可用人数</td>
+                  {[
+                    { value: result.constraints.c1_workersAfterShift1, label: "一二班后" },
+                    { value: result.constraints.c2_workersAfterOt1, label: "一加后" },
+                    { value: result.constraints.c1_workersAfterShift1, label: "二班同一班" },
+                    { value: result.constraints.c4_workersAfterOt2, label: "二加后" },
+                  ].map((item, i) => (
+                    <td key={i} className="py-1.5 px-1 text-center">
+                      <ConstraintInline value={item.value} sub={item.label} />
+                    </td>
+                  ))}
+                  <td />
+                </tr>
+
+                {/* 可用机器行 */}
+                <tr className="border-t border-dashed border-gray-200">
+                  <td className="py-1.5 pr-2 text-xs text-muted-foreground whitespace-nowrap">可用机器</td>
+                  {[
+                    { value: result.constraints.c5_machinesAfterShift1, label: "一班后" },
+                    { value: null, label: "" },
+                    { value: result.constraints.c7_machinesAfterShift2, label: "二班后" },
+                    { value: result.constraints.c8_machinesAfterOt2, label: "二加后" },
+                  ].map((item, i) => (
+                    <td key={i} className="py-1.5 px-1 text-center">
+                      {item.value !== null ? (
+                        <ConstraintInline value={item.value} sub={item.label} />
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </td>
+                  ))}
+                  <td />
+                </tr>
               </tbody>
             </table>
-          </div>
-
-          {/* 约束验证行 */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-            <ConstraintCell
-              label="可用人数(一二班后)"
-              value={result.constraints.c1_workersAfterShift1}
-            />
-            <ConstraintCell
-              label="可用人数(一加后)"
-              value={result.constraints.c2_workersAfterOt1}
-            />
-            <ConstraintCell
-              label="可用人数(二加后)"
-              value={result.constraints.c4_workersAfterOt2}
-            />
-            <ConstraintCell
-              label="可用机器(一班后)"
-              value={result.constraints.c5_machinesAfterShift1}
-            />
-            <ConstraintCell
-              label="可用机器(二班后)"
-              value={result.constraints.c7_machinesAfterShift2}
-            />
-            <ConstraintCell
-              label="可用机器(二加后)"
-              value={result.constraints.c8_machinesAfterOt2}
-            />
           </div>
         </div>
       </CollapsibleContent>
@@ -787,16 +788,17 @@ function ResourceCell({
   );
 }
 
-function ConstraintCell({ label, value }: { label: string; value: number }) {
+/** 内联约束值显示（嵌入表格单元格，借鉴 wuushuang 风格） */
+function ConstraintInline({ value, sub }: { value: number; sub?: string }) {
   const status = getConstraintStatus(value);
+  const icon = status === "fail" ? "⊗" : status === "warning" ? "△" : "⊙";
+  const colorCls = constraintColor(value);
   return (
-    <div className={`rounded-md px-3 py-2 ${constraintBg(value)} border border-gray-100`}>
-      <div className="text-muted-foreground mb-0.5">{label}</div>
-      <div className={`font-mono font-semibold ${constraintColor(value)}`}>
-        {value.toFixed(3)}
-        {status === "fail" && <XCircle className="size-3 inline ml-1" />}
-        {status === "pass" && value >= 5 && <CheckCircle2 className="size-3 inline ml-1" />}
-      </div>
+    <div className="flex flex-col items-center leading-tight">
+      <span className={`text-xs font-mono font-semibold ${colorCls}`}>
+        {icon} {value.toFixed(3)}
+      </span>
+      {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
     </div>
   );
 }

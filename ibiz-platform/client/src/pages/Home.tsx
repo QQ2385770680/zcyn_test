@@ -1,7 +1,7 @@
 /**
  * Home — 用户仪表盘首页
- * 设计风格：延续 wuushuang.com 的清新明亮风格
- * 注意：nest 模式下 setLocation 使用相对路径
+ * 设计风格：延续清新明亮风格，Hero 区域居中展示
+ * 移除动态参数统计卡片，用装饰性视觉元素替代
  */
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,10 +11,11 @@ import {
   Settings2,
   ShoppingCart,
   ArrowRight,
-  BarChart3,
-  Users,
   FileText,
   Zap,
+  TrendingUp,
+  Target,
+  Lightbulb,
 } from "lucide-react";
 import { useLocation } from "wouter";
 
@@ -23,54 +24,66 @@ export default function Home() {
 
   return (
     <div className="p-6 space-y-8">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-amber-50 border border-emerald-100/50 p-8">
+      {/* Hero Section — 居中布局，无统计卡片 */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-amber-50 border border-emerald-100/50 p-10">
         {/* Decorative bubbles */}
-        <div className="bubble w-32 h-32 bg-emerald-200 top-[-20px] right-[10%]" />
-        <div className="bubble w-24 h-24 bg-amber-200 bottom-[-10px] right-[30%]" />
-        <div className="bubble w-20 h-20 bg-pink-200 top-[20%] right-[5%]" />
-        <div className="bubble w-16 h-16 bg-blue-200 bottom-[10%] left-[60%]" />
+        <div className="bubble w-40 h-40 bg-emerald-200 top-[-30px] right-[8%]" />
+        <div className="bubble w-28 h-28 bg-amber-200 bottom-[-15px] right-[25%]" />
+        <div className="bubble w-20 h-20 bg-pink-200 top-[15%] right-[3%]" />
+        <div className="bubble w-16 h-16 bg-blue-200 bottom-[15%] left-[55%]" />
+        <div className="bubble w-12 h-12 bg-emerald-300 top-[60%] right-[45%]" />
 
-        <div className="relative z-10 flex flex-col lg:flex-row gap-8 items-start">
-          {/* Left: Title */}
-          <div className="flex-1 space-y-4">
-            <Badge className="bg-emerald-100 text-emerald-700 border-0 hover:bg-emerald-100">
-              iBizSim 企业竞争模拟
-            </Badge>
-            <h1 className="text-3xl font-bold text-gray-900">
-              智能决策辅助系统
-              <span className="text-emerald-600 ml-2 text-lg font-normal">「测试版」</span>
-            </h1>
-            <p className="text-gray-500 text-sm leading-relaxed max-w-lg">
-              覆盖生产决策的智能参数模拟与最优方案求解，支持多班次产能分析、约束验证与一键优化，助力参赛团队快速制定最优决策。
-            </p>
-            <div className="flex gap-3 pt-2">
-              <Button
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => setLocation("/production/simulator")}
-              >
-                <Zap className="size-4" />
-                开始模拟
-              </Button>
-              <Button
-                variant="outline"
-                className="border-gray-200"
-                onClick={() => setLocation("/config")}
-              >
-                <Settings2 className="size-4" />
-                配置参数
-              </Button>
-            </div>
-          </div>
-
-          {/* Right: Stats Cards */}
-          <div className="grid grid-cols-2 gap-3 w-full lg:w-auto lg:min-w-[280px]">
-            <StatCard icon={<BarChart3 className="size-5 text-emerald-500" />} value="8期" label="模拟期数" />
-            <StatCard icon={<Factory className="size-5 text-blue-500" />} value="4种" label="产品线" />
-            <StatCard icon={<Settings2 className="size-5 text-amber-500" />} value="157台" label="初始机器" />
-            <StatCard icon={<Users className="size-5 text-pink-500" />} value="113人" label="初始工人" />
+        <div className="relative z-10 max-w-2xl space-y-5">
+          <Badge className="bg-emerald-100 text-emerald-700 border-0 hover:bg-emerald-100">
+            iBizSim 企业竞争模拟
+          </Badge>
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+            智能决策辅助系统
+            <span className="text-emerald-600 ml-2 text-lg font-normal align-middle">「测试版」</span>
+          </h1>
+          <p className="text-gray-500 text-sm sm:text-base leading-relaxed">
+            覆盖生产决策的智能参数模拟与最优方案求解，支持多班次产能分析、约束验证与一键优化，助力参赛团队快速制定最优决策。
+          </p>
+          <div className="flex flex-wrap gap-3 pt-1">
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => setLocation("/production/simulator")}
+            >
+              <Zap className="size-4" />
+              开始模拟
+            </Button>
+            <Button
+              variant="outline"
+              className="border-gray-200"
+              onClick={() => setLocation("/config")}
+            >
+              <Settings2 className="size-4" />
+              配置参数
+            </Button>
           </div>
         </div>
+      </div>
+
+      {/* Feature Highlights — 替代统计卡片，展示核心能力 */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <FeatureHighlight
+          icon={<TrendingUp className="size-5" />}
+          title="智能排产"
+          description="基于约束条件自动求解最优产量分配，支持 8 期多班次联动计算"
+          color="emerald"
+        />
+        <FeatureHighlight
+          icon={<Target className="size-5" />}
+          title="方案对比"
+          description="创建多套决策方案，通过模拟验证快速找到最优策略组合"
+          color="blue"
+        />
+        <FeatureHighlight
+          icon={<Lightbulb className="size-5" />}
+          title="实时验证"
+          description="排产参数即时校验，人力与机器约束一目了然，避免无效决策"
+          color="amber"
+        />
       </div>
 
       {/* Quick Actions */}
@@ -125,12 +138,34 @@ export default function Home() {
   );
 }
 
-function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+/** 核心能力高亮卡片 */
+function FeatureHighlight({
+  icon,
+  title,
+  description,
+  color,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color: string;
+}) {
+  const styles: Record<string, { bg: string; iconBg: string; border: string }> = {
+    emerald: { bg: "bg-emerald-50/60", iconBg: "bg-emerald-100 text-emerald-600", border: "border-emerald-100/60" },
+    blue: { bg: "bg-blue-50/60", iconBg: "bg-blue-100 text-blue-600", border: "border-blue-100/60" },
+    amber: { bg: "bg-amber-50/60", iconBg: "bg-amber-100 text-amber-600", border: "border-amber-100/60" },
+  };
+  const s = styles[color] || styles.emerald;
+
   return (
-    <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-1">
-      <div className="mb-1">{icon}</div>
-      <div className="text-xl font-bold text-gray-900">{value}</div>
-      <div className="text-xs text-gray-500">{label}</div>
+    <div className={`rounded-xl ${s.bg} border ${s.border} p-5 flex gap-4 items-start`}>
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${s.iconBg}`}>
+        {icon}
+      </div>
+      <div className="space-y-1">
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        <p className="text-xs text-gray-500 leading-relaxed">{description}</p>
+      </div>
     </div>
   );
 }

@@ -54,7 +54,13 @@ export function designToProductions(
 
 /**
  * 将设计方案的雇佣策略和机器购买配置转换为模拟器的资源决策
- * 需要 config 来计算每期的 minFire / maxHire
+ *
+ * 新版雇佣策略（解雇固定为最低解雇）：
+ * - max-hire:   雇佣=最大雇佣, 解雇=最低解雇
+ * - balance:    雇佣=解雇=最低解雇
+ * - flexible:   雇佣=0（模拟器中手动输入）, 解雇=最低解雇
+ * - range:      雇佣=范围中值, 解雇=最低解雇
+ * - fixed:      雇佣=固定值, 解雇=最低解雇
  */
 export function designToDecisions(
   designHiring: PeriodHiringConfig[],
@@ -71,33 +77,31 @@ export function designToDecisions(
     const minFire = Math.ceil(currentInitialWorkers * (config.minFireRate / 100));
     const maxHire = Math.floor(currentInitialWorkers * (config.maxHireRate / 100));
 
-    let fired: number;
+    // 解雇固定为最低解雇
+    const fired = minFire;
     let hired: number;
 
     switch (hiring.mode) {
       case "max-hire":
-        fired = minFire;
         hired = maxHire;
         break;
-      case "min-fire":
-        fired = minFire;
-        hired = 0;
-        break;
       case "balance":
-        fired = minFire;
-        hired = minFire;
+        hired = minFire; // 雇佣=解雇=最低解雇
         break;
-      case "no-hire":
-        fired = minFire;
-        hired = 0;
+      case "flexible":
+        hired = 0; // 模拟器中手动输入，初始为0
         break;
-      case "custom":
-        fired = hiring.customFired;
-        hired = hiring.customHired;
+      case "range": {
+        const hMin = Math.max(0, hiring.hiredRangeMin);
+        const hMax = Math.min(maxHire, hiring.hiredRangeMax);
+        hired = Math.round((hMin + hMax) / 2);
+        break;
+      }
+      case "fixed":
+        hired = Math.min(maxHire, Math.max(0, hiring.fixedHired));
         break;
       default:
-        fired = minFire;
-        hired = 0;
+        hired = maxHire;
     }
 
     let machinesPurchased = 0;

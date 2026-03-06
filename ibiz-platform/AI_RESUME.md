@@ -1,9 +1,9 @@
 # AI 恢复文档 — ibiz-platform 前端
 
 ## 当前状态
-- **阶段**：阶段八完成（UI 优化）
+- **阶段**：阶段十完成（雇佣策略重构）
 - **Manus 项目名**：ibiz-sim
-- **最新 Manus 检查点**：`afa2381f`
+- **最新 Manus 检查点**：`6d2cd829`
 - **技术栈**：React 19 + Tailwind 4 + shadcn/ui + wouter + Vite
 
 ## 恢复步骤

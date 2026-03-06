@@ -478,3 +478,22 @@
 
 ### Manus 检查点
 - 版本: 70bf5085
+
+## 阶段十：雇佣策略模式重构（2026-03-06）
+
+### 完成内容
+1. **雇佣策略5种模式**：最大雇佣、雇佣=解雇、灵活调整、范围求解、固定值
+2. **解雇策略固定**：所有期数解雇固定为最低解雇（3%），不可调
+3. **模拟器适配**：灵活调整模式下模拟器显示蓝色高亮手动输入框
+4. **求解器适配**：solver.ts 适配新的5种雇佣模式
+5. **数据迁移**：migrateHiringConfig 函数兼容旧版数据
+
+### 修改文件
+- `client/src/lib/designerTypes.ts` — 类型重构
+- `client/src/components/production/Designer.tsx` — UI更新
+- `client/src/components/production/Simulator.tsx` — 手动输入
+- `client/src/lib/solver.ts` — 求解器适配
+- `client/src/lib/DesignPlanContext.tsx` — 转换逻辑
+
+### Manus 检查点
+- 版本号：6d2cd829

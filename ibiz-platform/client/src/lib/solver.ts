@@ -251,33 +251,36 @@ function solveHiringDecision(
   const minFire = Math.ceil(initialWorkers * (config.minFireRate / 100));
   const maxHire = Math.floor(initialWorkers * (config.maxHireRate / 100));
 
+  // 解雇固定为最低解雇
+  const fired = minFire;
+
   if (!hiringConfig) {
-    if (period <= 3) return { hired: maxHire, fired: minFire };
-    if (period === 4) return { hired: 0, fired: minFire };
-    return { hired: minFire, fired: minFire };
+    // 默认：最大雇佣
+    return { hired: maxHire, fired };
   }
 
   switch (hiringConfig.mode) {
     case "max-hire":
-      return { hired: maxHire, fired: minFire };
-    case "min-fire":
-      return { hired: 0, fired: minFire };
+      return { hired: maxHire, fired };
     case "balance":
-      return { hired: minFire, fired: minFire };
-    case "no-hire":
-      return { hired: 0, fired: minFire };
-    case "custom": {
+      return { hired: minFire, fired }; // 雇佣=解雇=最低解雇
+    case "flexible":
+      return { hired: 0, fired }; // 模拟器中手动输入，求解器默认0
+    case "range": {
       const hiredMin = Math.max(0, hiringConfig.hiredRangeMin);
       const hiredMax = Math.min(maxHire, hiringConfig.hiredRangeMax);
-      const firedMin = Math.max(minFire, hiringConfig.firedRangeMin);
-      const firedMax = Math.max(firedMin, hiringConfig.firedRangeMax);
       return {
         hired: Math.min(maxHire, Math.max(0, Math.round((hiredMin + hiredMax) / 2))),
-        fired: Math.max(minFire, Math.round((firedMin + firedMax) / 2)),
+        fired,
       };
     }
+    case "fixed":
+      return {
+        hired: Math.min(maxHire, Math.max(0, hiringConfig.fixedHired)),
+        fired,
+      };
     default:
-      return { hired: maxHire, fired: minFire };
+      return { hired: maxHire, fired };
   }
 }
 
@@ -365,11 +368,11 @@ function searchOptimalHiring(
   const minFire = Math.ceil(resources.initialWorkers * (config.minFireRate / 100));
   const maxHire = Math.floor(resources.initialWorkers * (config.maxHireRate / 100));
 
-  const firedMin = Math.max(minFire, hiringConfig.firedRangeMin);
+  // 解雇固定为最低解雇
   const hiredMin = Math.max(0, hiringConfig.hiredRangeMin);
   const hiredMax = Math.min(maxHire, hiringConfig.hiredRangeMax);
 
-  const fired = firedMin;
+  const fired = minFire;
   let bestHired = hiredMin;
   let bestScore = -Infinity;
 
@@ -444,10 +447,10 @@ function solveResourcePlan(
     decisions[i].machinesPurchased = bestPurchase;
   }
 
-  // 第三遍：对 custom 模式的雇佣，搜索最优人数
+  // 第三遍：对 range 模式的雇佣，搜索最优人数
   for (let i = 0; i < config.periods; i++) {
     const hiringConfig = designConfig?.periodHiring[i];
-    if (!hiringConfig || hiringConfig.mode !== "custom") continue;
+    if (!hiringConfig || hiringConfig.mode !== "range") continue;
 
     const bestHiring = searchOptimalHiring(i, config, decisions, hiringConfig);
     decisions[i].hired = bestHiring.hired;

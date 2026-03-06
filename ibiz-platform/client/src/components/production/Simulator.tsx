@@ -249,6 +249,15 @@ export function ProductionSimulator() {
     showToast("每期排产数量已重置", "info");
   };
 
+  /** 灵活调整模式下手动修改雇佣人数 */
+  const handleUpdateHired = (periodIdx: number, hired: number) => {
+    setDecisions((prev) => {
+      const next = [...prev];
+      next[periodIdx] = { ...next[periodIdx], hired };
+      return next;
+    });
+  };
+
   // ============================================================
   // 汇总统计
   // ============================================================
@@ -396,6 +405,7 @@ export function ProductionSimulator() {
             onUpdateProduction={(shift, product, value) =>
               updateProduction(idx, shift, product, value)
             }
+            onUpdateHired={handleUpdateHired}
             onOptimize={() => handleOptimizePeriod(idx)}
             activeDesign={activeDesign}
           />
@@ -513,7 +523,7 @@ interface PeriodAccordionProps {
   periodIdx: number;
   result: PeriodResult;
   production: PeriodProduction;
-  config: { periods: number; products: { name: string; machineHours: number; laborHours: number; rawMaterial: number }[] };
+  config: { periods: number; products: { name: string; machineHours: number; laborHours: number; rawMaterial: number }[]; minFireRate: number; maxHireRate: number };
   decision: PeriodDecision;
   isOpen: boolean;
   onToggle: () => void;
@@ -522,6 +532,7 @@ interface PeriodAccordionProps {
     product: "A" | "B" | "C" | "D",
     value: number
   ) => void;
+  onUpdateHired: (periodIdx: number, hired: number) => void;
   onOptimize: () => void;
   activeDesign: DesignPlanConfig | null;
 }
@@ -535,6 +546,7 @@ function PeriodAccordion({
   isOpen,
   onToggle,
   onUpdateProduction,
+  onUpdateHired,
   onOptimize,
   activeDesign,
 }: PeriodAccordionProps) {
@@ -569,7 +581,9 @@ function PeriodAccordion({
   const r = result.resources;
 
   // 雇佣策略描述
+  const isFlexible = activeDesign?.periodHiring[periodIdx]?.mode === "flexible";
   const hiringDesc = (() => {
+    if (isFlexible) return "灵活调整";
     if (r.hired === 0 && r.fired === r.minFire) return "不雇佣";
     if (r.hired === r.maxHire) return "最大雇佣";
     if (r.hired === r.fired) return "雇佣=解雇";
@@ -669,10 +683,36 @@ function PeriodAccordion({
             />
             <ResourceCell label="期初人数" value={String(Math.round(r.initialWorkers))} />
             <ResourceCell label="可用人数" value={r.totalAvailableWorkers.toFixed(1)} />
-            <ResourceCell
-              label="解雇/雇佣"
-              value={`-${r.fired} / +${r.hired}`}
-            />
+            {isFlexible ? (
+              <div className="bg-blue-50 rounded-md px-2 py-1.5 border border-blue-200">
+                <div className="text-[11px] text-blue-600 whitespace-nowrap flex items-center gap-0.5">
+                  解雇/雇佣
+                  <span className="text-[9px] px-0.5 rounded bg-blue-100 text-blue-700">手动</span>
+                </div>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="text-xs text-red-500">-{r.fired}</span>
+                  <span className="text-xs text-gray-400">/</span>
+                  <span className="text-xs text-emerald-600">+</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={r.maxHire}
+                    value={decision.hired}
+                    onChange={(e) => {
+                      const val = Math.max(0, Math.min(r.maxHire, parseInt(e.target.value) || 0));
+                      onUpdateHired(periodIdx, val);
+                    }}
+                    className="h-6 w-14 text-xs text-center bg-white border-blue-300 focus:border-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            ) : (
+              <ResourceCell
+                label="解雇/雇佣"
+                value={`-${r.fired} / +${r.hired}`}
+              />
+            )}
             <ResourceCell label="解雇范围" value={`${r.minFire}~${Math.ceil(r.initialWorkers * 0.1)}`} tag="公式" />
             <ResourceCell label="最大雇佣" value={String(r.maxHire)} tag="公式" />
           </div>

@@ -88,11 +88,11 @@ const MODE_OPTIONS: { value: ProductionMode; label: string; color: string; desc:
 ];
 
 const HIRING_OPTIONS: { value: HiringMode; label: string; desc: string }[] = [
-  { value: "max-hire", label: "最大雇佣", desc: "雇佣上限人数，快速扩张" },
-  { value: "min-fire", label: "最少解雇", desc: "仅解雇最低要求人数" },
-  { value: "balance", label: "雇佣=解雇", desc: "维持人力平衡" },
-  { value: "no-hire", label: "不雇佣", desc: "仅执行最少解雇" },
-  { value: "custom", label: "自定义", desc: "手动设置雇佣/解雇人数" },
+  { value: "max-hire", label: "最大雇佣", desc: "雇佣上限人数" },
+  { value: "balance", label: "雇佣=解雇", desc: "雇佣人数等于解雇人数" },
+  { value: "flexible", label: "灵活调整", desc: "模拟中手动输入雇佣人数" },
+  { value: "range", label: "范围求解", desc: "设定范围由求解器决定" },
+  { value: "fixed", label: "固定值", desc: "指定固定雇佣人数" },
 ];
 
 const MACHINE_OPTIONS: { value: MachinePurchaseMode; label: string; desc: string }[] = [
@@ -748,7 +748,7 @@ export function ProductionDesigner() {
                 1-8 期雇佣策略
               </CardTitle>
               <CardDescription className="text-xs">
-                为每期设置雇佣/解雇策略。最少解雇率：{config.minFireRate}%，最大雇佣率：{config.maxHireRate}%
+                为每期设置雇佣策略。解雇固定为最低解雇（{config.minFireRate}%），最大雇佣率：{config.maxHireRate}%
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
@@ -791,85 +791,70 @@ export function ProductionDesigner() {
                             </Select>
                           </td>
                           <td className="px-3 py-2.5">
-                            {h.mode === "custom" ? (
-                              <div className="flex flex-col gap-2">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-gray-500 w-8 shrink-0">雇佣</span>
-                                  <Input
-                                    type="number"
-                                    className="h-7 w-16 text-xs text-center"
-                                    value={h.hiredRangeMin ?? 0}
-                                    onChange={(e) => {
-                                      const val = parseInt(e.target.value) || 0;
-                                      setPlan(prev => {
-                                        const next = { ...prev };
-                                        const hiring = [...next.periodHiring];
-                                        hiring[i] = { ...hiring[i], hiredRangeMin: val };
-                                        next.periodHiring = hiring;
-                                        return next;
-                                      });
-                                    }}
-                                    placeholder="0"
-                                    min={0}
-                                  />
-                                  <span className="text-xs text-gray-400">~</span>
-                                  <Input
-                                    type="number"
-                                    className="h-7 w-16 text-xs text-center"
-                                    value={h.hiredRangeMax ?? 50}
-                                    onChange={(e) => {
-                                      const val = parseInt(e.target.value) || 0;
-                                      setPlan(prev => {
-                                        const next = { ...prev };
-                                        const hiring = [...next.periodHiring];
-                                        hiring[i] = { ...hiring[i], hiredRangeMax: val };
-                                        next.periodHiring = hiring;
-                                        return next;
-                                      });
-                                    }}
-                                    placeholder="50"
-                                    min={0}
-                                  />
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs text-gray-500 w-8 shrink-0">解雇</span>
-                                  <Input
-                                    type="number"
-                                    className="h-7 w-16 text-xs text-center"
-                                    value={h.firedRangeMin ?? 0}
-                                    onChange={(e) => {
-                                      const val = parseInt(e.target.value) || 0;
-                                      setPlan(prev => {
-                                        const next = { ...prev };
-                                        const hiring = [...next.periodHiring];
-                                        hiring[i] = { ...hiring[i], firedRangeMin: val };
-                                        next.periodHiring = hiring;
-                                        return next;
-                                      });
-                                    }}
-                                    placeholder="0"
-                                    min={0}
-                                  />
-                                  <span className="text-xs text-gray-400">~</span>
-                                  <Input
-                                    type="number"
-                                    className="h-7 w-16 text-xs text-center"
-                                    value={h.firedRangeMax ?? 20}
-                                    onChange={(e) => {
-                                      const val = parseInt(e.target.value) || 0;
-                                      setPlan(prev => {
-                                        const next = { ...prev };
-                                        const hiring = [...next.periodHiring];
-                                        hiring[i] = { ...hiring[i], firedRangeMax: val };
-                                        next.periodHiring = hiring;
-                                        return next;
-                                      });
-                                    }}
-                                    placeholder="20"
-                                    min={0}
-                                  />
-                                </div>
+                            {h.mode === "range" ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-gray-500 shrink-0">雇佣范围</span>
+                                <Input
+                                  type="number"
+                                  className="h-7 w-16 text-xs text-center"
+                                  value={h.hiredRangeMin ?? 0}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    setPlan(prev => {
+                                      const next = { ...prev };
+                                      const hiring = [...next.periodHiring];
+                                      hiring[i] = { ...hiring[i], hiredRangeMin: val };
+                                      next.periodHiring = hiring;
+                                      return next;
+                                    });
+                                  }}
+                                  placeholder="0"
+                                  min={0}
+                                />
+                                <span className="text-xs text-gray-400">~</span>
+                                <Input
+                                  type="number"
+                                  className="h-7 w-16 text-xs text-center"
+                                  value={h.hiredRangeMax ?? 50}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    setPlan(prev => {
+                                      const next = { ...prev };
+                                      const hiring = [...next.periodHiring];
+                                      hiring[i] = { ...hiring[i], hiredRangeMax: val };
+                                      next.periodHiring = hiring;
+                                      return next;
+                                    });
+                                  }}
+                                  placeholder="50"
+                                  min={0}
+                                />
+                                <span className="text-xs text-gray-400">人</span>
                               </div>
+                            ) : h.mode === "fixed" ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-gray-500 shrink-0">雇佣人数</span>
+                                <Input
+                                  type="number"
+                                  className="h-7 w-20 text-xs text-center"
+                                  value={h.fixedHired ?? 0}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    setPlan(prev => {
+                                      const next = { ...prev };
+                                      const hiring = [...next.periodHiring];
+                                      hiring[i] = { ...hiring[i], fixedHired: val };
+                                      next.periodHiring = hiring;
+                                      return next;
+                                    });
+                                  }}
+                                  placeholder="0"
+                                  min={0}
+                                />
+                                <span className="text-xs text-gray-400">人</span>
+                              </div>
+                            ) : h.mode === "flexible" ? (
+                              <span className="text-xs text-blue-500">模拟时手动输入</span>
                             ) : (
                               <span className="text-xs text-gray-400">—</span>
                             )}
@@ -909,12 +894,28 @@ export function ProductionDesigner() {
             <Button variant="outline" size="sm" className="text-xs" onClick={() => {
               setPlan(prev => ({
                 ...prev,
+                periodHiring: prev.periodHiring.map(() => ({ ...defaultHiringConfig(), mode: "flexible" as HiringMode })),
+              }));
+              showToast("已将所有期设为「灵活调整」", "info");
+            }}>
+              全部灵活调整
+            </Button>
+            <Button variant="outline" size="sm" className="text-xs" onClick={() => {
+              setPlan(prev => ({
+                ...prev,
                 periodHiring: defaultDesignPlanConfig(config.periods).periodHiring,
               }));
-              showToast("已恢复默认雇佣策略（P1-3 最大雇佣，P4 不雇佣，P5-8 平衡）", "info");
+              showToast("已恢复默认雇佣策略（全部最大雇佣）", "info");
             }}>
               恢复默认
             </Button>
+          </div>
+
+          {/* 解雇策略说明 */}
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-2">
+            <p className="text-xs text-amber-700">
+              <strong>解雇策略：</strong>所有期数固定为最低解雇（当期期初人数 × {config.minFireRate}%，向上取整）。不可单独调整。
+            </p>
           </div>
         </TabsContent>
 

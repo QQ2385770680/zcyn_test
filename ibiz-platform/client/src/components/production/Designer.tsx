@@ -760,7 +760,7 @@ export function ProductionDesigner() {
                 1-8 期机器购买策略
               </CardTitle>
               <CardDescription className="text-xs">
-                为每期设置机器购买策略。初始机器数：{config.initialMachines}，购买后两期到货。
+                为每期设置机器购买策略。购买后两期到货。
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">

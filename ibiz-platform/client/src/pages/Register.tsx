@@ -69,7 +69,7 @@ export default function Register() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 leading-tight mb-4">
-            加入无双工作室<br />开启智能决策之旅
+            加入无双决策引擎<br />开启智能决策之旅
           </h1>
           <p className="text-gray-500 leading-relaxed mb-8">
             注册账号后即可使用全部基础功能，包括生产模拟、方案设计和方案市场。

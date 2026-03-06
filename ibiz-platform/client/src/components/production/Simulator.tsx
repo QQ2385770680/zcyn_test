@@ -103,14 +103,14 @@ type CellColorKey = keyof typeof CELL_COLORS;
 // ============================================================
 
 function constraintColor(value: number): string {
-  if (value < -0.001) return "text-red-600 font-semibold";
-  if (value < 5) return "text-emerald-600"; // 接近0 = 达标
+  if (value < -0.001) return "text-red-600 font-semibold"; // 超限
+  if (value <= 5) return "text-emerald-600"; // 接近0 = 达标
   return "text-amber-600"; // 偏大
 }
 
 function constraintBg(value: number): string {
   if (value < -0.001) return "bg-red-50";
-  if (value < 5) return ""; // 接近0 = 达标
+  if (value <= 5) return ""; // 接近0 = 达标
   return "bg-amber-50"; // 偏大
 }
 
@@ -337,7 +337,7 @@ export function ProductionSimulator() {
           绿格 = 固定
         </span>
         <span className="ml-2 flex items-center gap-2">
-          <span className="text-emerald-600">⊙ 接近0</span>
+          <span className="text-emerald-600">⊙ 达标</span>
           <span className="text-amber-600">△ 偏大</span>
           <span className="text-red-600">⊗ 超限</span>
         </span>
@@ -380,6 +380,7 @@ export function ProductionSimulator() {
             result={result}
             production={productions[idx]}
             config={config}
+            decision={decisions[idx]}
             isOpen={openPeriods.has(idx + 1)}
             onToggle={() => togglePeriod(idx + 1)}
             onUpdateProduction={(shift, product, value) =>
@@ -503,6 +504,7 @@ interface PeriodAccordionProps {
   result: PeriodResult;
   production: PeriodProduction;
   config: { periods: number; products: { name: string; machineHours: number; laborHours: number; rawMaterial: number }[] };
+  decision: PeriodDecision;
   isOpen: boolean;
   onToggle: () => void;
   onUpdateProduction: (
@@ -519,6 +521,7 @@ function PeriodAccordion({
   result,
   production,
   config,
+  decision,
   isOpen,
   onToggle,
   onUpdateProduction,
@@ -610,15 +613,21 @@ function PeriodAccordion({
             )}
           </div>
 
-          {/* 总产量 */}
-          <span className="text-sm font-semibold mr-2">
+          {/* 总产量 + 约束状态标识 */}
+          <span className="text-sm font-semibold mr-2 flex items-center gap-1.5">
             总产量: <span className={totalOutput > 0 ? "text-emerald-700" : "text-muted-foreground"}>{totalOutput}</span>
+            {totalOutput > 0 && (() => {
+              const cs = result.constraints;
+              const vals = [cs.c1_workersAfterShift1, cs.c2_workersAfterOt1, cs.c4_workersAfterOt2, cs.c5_machinesAfterShift1, cs.c7_machinesAfterShift2, cs.c8_machinesAfterOt2];
+              const hasFail = vals.some(v => v < -0.001);
+              const hasWarn = vals.some(v => v > 5);
+              const allPass = !hasFail && !hasWarn;
+              if (hasFail) return <span className="text-red-600 text-xs font-semibold">⊗ 超限</span>;
+              if (hasWarn) return <span className="text-amber-600 text-xs font-semibold">△ 偏大</span>;
+              if (allPass) return <span className="text-emerald-600 text-xs font-semibold">⊙ 达标</span>;
+              return null;
+            })()}
           </span>
-
-          {/* 约束状态 */}
-          {!passed && (
-            <AlertTriangle className="size-4 text-red-500" />
-          )}
 
           {/* 本期最优按钮 */}
           <Button
@@ -642,8 +651,13 @@ function PeriodAccordion({
       <CollapsibleContent>
         <div className="mt-1 p-4 border border-gray-200 rounded-lg bg-white space-y-4">
           {/* 资源信息行 */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
             <ResourceCell label="本期机器" value={String(r.machines)} />
+            <ResourceCell
+              label="购买机器"
+              value={decision.machinesPurchased > 0 ? `+${decision.machinesPurchased}` : "0"}
+              tag={decision.machinesPurchased > 0 ? `P${period + 2}到货` : undefined}
+            />
             <ResourceCell label="期初人数" value={String(Math.round(r.initialWorkers))} />
             <ResourceCell label="可用人数" value={r.totalAvailableWorkers.toFixed(1)} />
             <ResourceCell
@@ -806,7 +820,7 @@ function ResourceCell({
 /** 内联约束值显示（嵌入表格单元格，借鉴 wuushuang 风格） */
 function ConstraintInline({ value, sub }: { value: number; sub?: string }) {
   const status = getConstraintStatus(value);
-  const icon = status === "fail" ? "⊗" : status === "warning" ? "△" : "⊙"; // 接近0=⊙达标, 偏大=△, 超限=⊗
+  const icon = status === "fail" ? "⊗" : status === "warning" ? "△" : "⊙"; // 达标=⊙, 偏大=△, 超限=⊗
   const colorCls = constraintColor(value);
   return (
     <div className="flex flex-col items-center leading-tight">

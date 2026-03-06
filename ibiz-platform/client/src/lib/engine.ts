@@ -419,13 +419,13 @@ export function generateDefaultDecisions(config: GlobalConfig): PeriodDecision[]
 // 7. 工具函数
 // ============================================================
 
-/** 获取约束状态：pass / warning / fail */
+/** 获取约束状态：pass(接近0=达标) / warning(偏大) / fail(超限) */
 export function getConstraintStatus(
   value: number
 ): "pass" | "warning" | "fail" {
-  if (value < -0.001) return "fail";
-  if (value < 5) return "warning";
-  return "pass";
+  if (value < -0.001) return "fail";   // 超限（红）
+  if (value <= 5) return "pass";       // 接近0 = 达标（绿）
+  return "warning";                     // 偏大（黄）
 }
 
 /** 格式化约束值为字符串 */

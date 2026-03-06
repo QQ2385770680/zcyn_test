@@ -6,6 +6,7 @@
  * - 自动计算机器系数和人力系数
  * - 所有配置自动持久化到 localStorage
  * - 支持重置为默认值
+ * - 产品 ABCD 作为列标题，参数作为行
  */
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,59 @@ export default function GlobalConfig() {
     setTimeout(() => setShowSaved(false), 2000);
   };
 
+  // 参数行定义
+  const paramRows: {
+    label: string;
+    field: keyof ProductSpec | null;
+    unit: string;
+    editable: boolean;
+    getValue: (product: ProductSpec) => string | number;
+  }[] = [
+    {
+      label: "机器时",
+      field: "machineHours",
+      unit: "时/单位",
+      editable: true,
+      getValue: (p) => p.machineHours,
+    },
+    {
+      label: "人力时",
+      field: "laborHours",
+      unit: "时/单位",
+      editable: true,
+      getValue: (p) => p.laborHours,
+    },
+    {
+      label: "原材料",
+      field: "rawMaterial",
+      unit: "单位",
+      editable: true,
+      getValue: (p) => p.rawMaterial,
+    },
+    {
+      label: "机器系数",
+      field: null,
+      unit: "",
+      editable: false,
+      getValue: (p) => (p.machineHours / 520).toFixed(4),
+    },
+    {
+      label: "人力系数",
+      field: null,
+      unit: "",
+      editable: false,
+      getValue: (p) => (p.laborHours / 520).toFixed(4),
+    },
+  ];
+
+  // 产品颜色
+  const productColors = [
+    "text-red-600 bg-red-50 border-red-200",
+    "text-blue-600 bg-blue-50 border-blue-200",
+    "text-amber-600 bg-amber-50 border-amber-200",
+    "text-purple-600 bg-purple-50 border-purple-200",
+  ];
+
   return (
     <div className="p-6 space-y-6">
       {/* 页面头部 */}
@@ -70,7 +124,7 @@ export default function GlobalConfig() {
         </div>
       </div>
 
-      {/* 产品规格参数 */}
+      {/* 产品规格参数 — 转置表格：ABCD 作为列标题 */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -94,66 +148,59 @@ export default function GlobalConfig() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="text-left py-2 px-3 font-medium text-gray-500 w-16">产品</th>
-                  <th className="text-center py-2 px-3 font-medium text-gray-500">机器时 (时/单位)</th>
-                  <th className="text-center py-2 px-3 font-medium text-gray-500">人力时 (时/单位)</th>
-                  <th className="text-center py-2 px-3 font-medium text-gray-500">原材料 (单位)</th>
-                  <th className="text-center py-2 px-3 font-medium text-gray-500">机器系数</th>
-                  <th className="text-center py-2 px-3 font-medium text-gray-500">人力系数</th>
+                  <th className="text-left py-2.5 px-3 font-medium text-gray-500 w-28">参数</th>
+                  {config.products.map((product, idx) => {
+                    const isModified =
+                      product.machineHours !== DEFAULT_PRODUCTS[idx]?.machineHours ||
+                      product.laborHours !== DEFAULT_PRODUCTS[idx]?.laborHours ||
+                      product.rawMaterial !== DEFAULT_PRODUCTS[idx]?.rawMaterial;
+                    return (
+                      <th key={product.name} className="text-center py-2.5 px-3 font-medium">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Badge variant="outline" className={`text-sm font-bold px-3 py-0.5 ${productColors[idx]}`}>
+                            产品 {product.name}
+                          </Badge>
+                          {isModified && (
+                            <Badge className="text-[9px] px-1 py-0 bg-purple-100 text-purple-700 border-0">
+                              已改
+                            </Badge>
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
-                {config.products.map((product, index) => {
-                  const isModified =
-                    product.machineHours !== DEFAULT_PRODUCTS[index]?.machineHours ||
-                    product.laborHours !== DEFAULT_PRODUCTS[index]?.laborHours ||
-                    product.rawMaterial !== DEFAULT_PRODUCTS[index]?.rawMaterial;
-                  return (
-                    <tr key={product.name} className="border-b border-gray-50 hover:bg-gray-50/50">
-                      <td className="py-2 px-3">
-                        <span className="font-semibold text-gray-700">{product.name}</span>
-                        {isModified && (
-                          <Badge className="ml-1.5 text-[9px] px-1 py-0 bg-purple-100 text-purple-700 border-0">
-                            已改
-                          </Badge>
+                {paramRows.map((row) => (
+                  <tr key={row.label} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center gap-1">
+                        <span className="font-medium text-gray-700">{row.label}</span>
+                        {row.unit && (
+                          <span className="text-xs text-gray-400">({row.unit})</span>
+                        )}
+                      </div>
+                    </td>
+                    {config.products.map((product, index) => (
+                      <td key={product.name} className="py-2.5 px-3 text-center">
+                        {row.editable && row.field ? (
+                          <Input
+                            type="number"
+                            value={row.getValue(product)}
+                            onChange={(e) => updateProduct(index, row.field!, parseInt(e.target.value) || 0)}
+                            className="w-24 mx-auto text-center h-8 text-sm"
+                            min={row.field === "rawMaterial" ? 0 : 1}
+                          />
+                        ) : (
+                          <span className="text-gray-500 font-mono text-xs">
+                            {row.getValue(product)}
+                          </span>
                         )}
                       </td>
-                      <td className="py-2 px-3">
-                        <Input
-                          type="number"
-                          value={product.machineHours}
-                          onChange={(e) => updateProduct(index, "machineHours", parseInt(e.target.value) || 0)}
-                          className="w-24 mx-auto text-center h-8 text-sm"
-                          min={1}
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <Input
-                          type="number"
-                          value={product.laborHours}
-                          onChange={(e) => updateProduct(index, "laborHours", parseInt(e.target.value) || 0)}
-                          className="w-24 mx-auto text-center h-8 text-sm"
-                          min={1}
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <Input
-                          type="number"
-                          value={product.rawMaterial}
-                          onChange={(e) => updateProduct(index, "rawMaterial", parseInt(e.target.value) || 0)}
-                          className="w-24 mx-auto text-center h-8 text-sm"
-                          min={0}
-                        />
-                      </td>
-                      <td className="py-2 px-3 text-center text-gray-500 font-mono text-xs">
-                        {(product.machineHours / 520).toFixed(4)}
-                      </td>
-                      <td className="py-2 px-3 text-center text-gray-500 font-mono text-xs">
-                        {(product.laborHours / 520).toFixed(4)}
-                      </td>
-                    </tr>
-                  );
-                })}
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

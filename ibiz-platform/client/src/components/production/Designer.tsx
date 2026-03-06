@@ -741,13 +741,6 @@ export function ProductionDesigner() {
         {/* 雇佣策略 Tab */}
         {/* ============================================================ */}
         <TabsContent value="hiring" className="space-y-4 mt-4">
-          {/* 保存方案按钮 */}
-          <div className="flex justify-end">
-            <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
-              <Save className="size-3.5" />
-              保存方案
-            </Button>
-          </div>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -929,13 +922,6 @@ export function ProductionDesigner() {
         {/* 机器购买 Tab */}
         {/* ============================================================ */}
         <TabsContent value="machines" className="space-y-4 mt-4">
-          {/* 保存方案按钮 */}
-          <div className="flex justify-end">
-            <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
-              <Save className="size-3.5" />
-              保存方案
-            </Button>
-          </div>
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">

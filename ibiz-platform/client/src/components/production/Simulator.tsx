@@ -130,6 +130,7 @@ export function ProductionSimulator() {
   // 当前加载的设计方案
   const [activeDesign, setActiveDesign] = React.useState<DesignPlanConfig | null>(null);
   const [designSource, setDesignSource] = React.useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = React.useState<string | undefined>(undefined);
 
   // 各期排产数据
   const [productions, setProductions] = React.useState<PeriodProduction[]>(() =>
@@ -141,7 +142,7 @@ export function ProductionSimulator() {
     generateDefaultDecisions(config)
   );
 
-  // 检查是否有来自设计器的待应用数据
+  // 检查是否有来自设计器/我的方案的待应用数据
   React.useEffect(() => {
     const simData = consumeSimData();
     if (simData) {
@@ -150,7 +151,13 @@ export function ProductionSimulator() {
       setDesignSource(simData.designPlan.name || "未命名方案");
       setActiveDesign(simData.designPlan);
       setOpenPeriods(new Set([1]));
-      showToast("已加载设计方案到模拟器", "info");
+      // 在方案列表中查找匹配的 ID，让下拉框显示选中状态
+      const matchedPlan = designPlans.find(p => p.name === simData.designPlan.name);
+      if (matchedPlan) {
+        setSelectedPlanId(matchedPlan.id);
+        recordPlanUsage(matchedPlan.id);
+      }
+      showToast(`已加载方案「${simData.designPlan.name || "未命名方案"}`, "info");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -207,6 +214,7 @@ export function ProductionSimulator() {
     setDecisions(newDecisions);
     setActiveDesign(plan);
     setDesignSource(plan.name || "未命名方案");
+    setSelectedPlanId(planId);
     // 记录方案使用次数
     recordPlanUsage(plan.id);
     showToast(`已加载方案「${plan.name}」`, "success");
@@ -268,7 +276,7 @@ export function ProductionSimulator() {
         {/* 加载方案 */}
         <div className="flex items-center gap-2">
           <FolderOpen className="size-4 text-muted-foreground" />
-          <Select onValueChange={handleLoadDesign}>
+          <Select value={selectedPlanId} onValueChange={handleLoadDesign}>
             <SelectTrigger className="w-[200px] h-9 text-sm">
               <SelectValue placeholder="选择方案设计..." />
             </SelectTrigger>

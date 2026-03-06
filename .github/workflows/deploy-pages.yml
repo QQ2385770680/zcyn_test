@@ -42,8 +42,8 @@ jobs:
 
       - name: Build
         run: pnpm run build:gh-pages
-        env:
-          GITHUB_PAGES_BASE: /zcyn_test/
+
+
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

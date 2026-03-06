@@ -14,6 +14,8 @@
 
 **设计风格**：延续 [wuushuang.com](https://www.wuushuang.com/) 的清新简洁风格 — 纯白背景、翠绿主色调（emerald-600）、彩色气泡装饰、功能色彩编码、卡片式布局、轻量边框、微妙阴影。
 
+**Manus 部署**：项目已部署到 Manus 平台，webdev 项目名 `ibiz-sim`，最新 checkpoint `0f0b6584`。
+
 ---
 
 ## 二、代码获取
@@ -29,13 +31,13 @@ cd zcyn_test/ibiz-platform
 
 ### 2.2 Manus Webdev 项目
 
-如果在 Manus 沙箱环境中工作，项目路径为：
+如果在 Manus 沙箱环境中工作，需要先将代码复制到 webdev 项目目录：
 
 ```
-/home/ubuntu/ibiz-platform
+/home/ubuntu/ibiz-sim
 ```
 
-该项目通过 `webdev_init_project` 初始化，项目名 `ibiz-platform`。
+该项目通过 `webdev_init_project` 初始化，项目名 `ibiz-sim`。
 
 ---
 
@@ -44,7 +46,15 @@ cd zcyn_test/ibiz-platform
 ### 3.1 安装依赖
 
 ```bash
-cd /home/ubuntu/ibiz-platform
+# 将代码复制到 webdev 项目目录（如果从 GitHub 恢复）
+cp -r /home/ubuntu/zcyn_test/ibiz-platform/client /home/ubuntu/ibiz-sim/
+cp -r /home/ubuntu/zcyn_test/ibiz-platform/server /home/ubuntu/ibiz-sim/
+cp -r /home/ubuntu/zcyn_test/ibiz-platform/shared /home/ubuntu/ibiz-sim/
+cp /home/ubuntu/zcyn_test/ibiz-platform/package.json /home/ubuntu/ibiz-sim/
+cp /home/ubuntu/zcyn_test/ibiz-platform/tsconfig.json /home/ubuntu/ibiz-sim/
+cp /home/ubuntu/zcyn_test/ibiz-platform/vite.config.ts /home/ubuntu/ibiz-sim/
+
+cd /home/ubuntu/ibiz-sim
 pnpm install
 ```
 
@@ -68,7 +78,7 @@ pnpm run dev
 
 ---
 
-## 四、当前项目状态（截至 2026-03-05 阶段四）
+## 四、当前项目状态（截至 2026-03-06 阶段六）
 
 ### 4.1 路由架构
 
@@ -89,9 +99,8 @@ pnpm run dev
 |------|------|------|
 | `/dashboard` | 用户仪表盘 | `pages/Home.tsx` |
 | `/dashboard/config` | 全局配置 | `pages/GlobalConfig.tsx` |
-| `/dashboard/initial-data` | 初始数据 | `pages/InitialData.tsx` |
-| `/dashboard/production/simulator` | 生产模拟器 | `pages/Production.tsx` → `components/production/Simulator.tsx` |
-| `/dashboard/production/designer` | 方案设计器 | `pages/Production.tsx` → `components/production/Designer.tsx` |
+| `/dashboard/production/simulator` | 生产模拟 | `pages/Production.tsx` → `components/production/Simulator.tsx` |
+| `/dashboard/production/designer` | 方案设计 | `pages/Production.tsx` → `components/production/Designer.tsx` |
 | `/dashboard/production/plans` | 我的方案 | `pages/Production.tsx` → `components/production/Plans.tsx` |
 | `/dashboard/marketplace` | 方案市场 | `pages/Marketplace.tsx` |
 
@@ -131,22 +140,40 @@ App.tsx 中使用了 wouter 的 `nest` 属性来实现路由前缀。**在 nest 
 - 侧边栏、面包屑中的路径比较和跳转使用相对路径（如 `/config` 而非 `/dashboard/config`）
 - 跨 nest 跳转（如从 dashboard 退出登录跳到 `/login`）需使用 `window.location.href`
 
-### 4.4 阶段四新增：P0 核心功能
+### 4.4 核心功能模块
 
-阶段四实现了三大核心功能，将系统从纯 UI 展示升级为可用的计算工具：
+**计算引擎（engine.ts）**：
 
-| 功能模块 | 文件 | 说明 |
-|----------|------|------|
-| 数据类型定义 | `lib/data.ts` | 产品规格、期数结构、方案类型、颜色映射（与 rule.xls 一致） |
-| 计算引擎 | `lib/engine.ts` | 资源迭代、6 个约束检查点、产能计算、多期联动 |
-| 全局配置上下文 | `lib/ConfigContext.tsx` | React Context + localStorage 自动持久化 |
-| 方案存储服务 | `lib/planStorage.ts` | localStorage CRUD（创建/复制/删除/收藏） |
+| 功能 | 说明 |
+|------|------|
+| 可用工人计算 | 期初工人 - ceil(解雇) + floor(雇佣) × 新工人效率 |
+| 6 个约束检查点 | C1(一班后人数)、C2(一加后人数)、C4(二加后人数)、C5(一班后机器)、C7(二班后机器)、C8(二加后机器) |
+| 资源消耗计算 | 各班次的人力消耗和机器消耗（基于产品规格系数） |
+| 利用率计算 | 工人利用率 = 消耗人力/可用人力，机器利用率 = 消耗机器/可用机器 |
+| 多期联动 | 各期工人数量根据解雇/雇佣决策自动迭代 |
 
-**已验证**：模拟器输入 A 产品一加=50 时，C2 约束=-15.385（超限），人力消耗=7.69，机器消耗=10.58，均与公式手算结果一致。
+**方案设计器（Designer.tsx）— 阶段六重构**：
+
+| 功能模块 | 说明 |
+|----------|------|
+| 产量配置 | 1-8 期 × 4 班次 × 4 产品，支持行为模式（必选/可选/留空/固定）和求解范围设置 |
+| 雇佣策略 | 8 期独立配置，5 种模式（最大雇佣/最少解雇/平衡/不雇佣/自定义） |
+| 机器购买 | 8 期独立配置，3 种模式（不买/固定/范围），含到货期提示 |
+| 方案管理 | 保存/加载/导入/导出方案（localStorage + JSON 文件） |
+| 从规则表初始化 | 根据 data.ts 中的规则表自动设置行为模式 |
+
+**数据类型（designerTypes.ts）**：
+
+| 类型 | 说明 |
+|------|------|
+| `ProductionBehavior` | 产量行为模式枚举（required/optional/empty/fixed） |
+| `HiringStrategy` | 雇佣策略枚举（max_hire/min_fire/balance/no_hire/custom） |
+| `MachinePurchaseMode` | 机器购买模式枚举（none/fixed/range） |
+| `DesignPlan` | 完整方案结构（含 8 期产量配置 + 雇佣策略 + 机器购买） |
 
 ### 4.5 已知问题
 
-收入/成本/利润计算尚未实现（需要市场价格数据），库存结转和机器折旧/购买逻辑待完善。方案设计器（Designer.tsx）仍为 UI 骨架，未接入计算引擎。
+收入/成本/利润计算尚未实现（需要市场价格数据），库存结转和机器折旧/购买逻辑待完善。方案设计器与模拟器尚未联动。
 
 ---
 
@@ -173,6 +200,7 @@ ibiz-platform/
 │       │   ├── utils.ts                    # 工具函数 (cn)
 │       │   ├── data.ts                     # 数据类型定义（产品规格/期数/方案/颜色映射）
 │       │   ├── engine.ts                   # 生产决策计算引擎
+│       │   ├── designerTypes.ts            # 方案设计器数据类型（行为模式/策略/方案结构）
 │       │   ├── ConfigContext.tsx            # 全局配置上下文（localStorage 持久化）
 │       │   └── planStorage.ts              # 方案存储服务（localStorage CRUD）
 │       ├── pages/
@@ -182,7 +210,6 @@ ibiz-platform/
 │       │   ├── AdminLogin.tsx             # 管理员登录
 │       │   ├── Home.tsx                   # 用户仪表盘
 │       │   ├── GlobalConfig.tsx           # 全局配置
-│       │   ├── InitialData.tsx            # 初始数据
 │       │   ├── Production.tsx             # 生产决策入口
 │       │   ├── Marketplace.tsx            # 方案市场
 │       │   ├── NotFound.tsx               # 404 页面
@@ -200,7 +227,7 @@ ibiz-platform/
 │           ├── RouteGuards.tsx            # 路由守卫组件
 │           ├── production/
 │           │   ├── Simulator.tsx          # 生产模拟器
-│           │   ├── Designer.tsx           # 方案设计器
+│           │   ├── Designer.tsx           # 方案设计器（阶段六重构）
 │           │   └── Plans.tsx             # 我的方案
 │           └── ui/                        # shadcn/ui 组件库
 │               └── ... (30+ 组件)
@@ -246,20 +273,20 @@ ibiz-platform/
 
 详细清单请参阅 `todo.md`，以下为摘要：
 
-### P0 — 核心功能（已完成大部分，剩余项如下）
+### P0 — 核心功能（剩余项）
 
 | 任务 | 涉及文件 | 说明 |
 |------|----------|------|
+| 方案设计器与模拟器联动 | Designer.tsx, Simulator.tsx | 设计方案加载到模拟器验证 |
 | 收入/成本/利润计算 | `lib/engine.ts` | 需要市场价格数据 |
 | 多期联动完善 | `lib/engine.ts` | 库存结转、机器折旧/购买 |
-| 方案导入/导出 | `lib/planStorage.ts` | JSON 格式导入/导出 |
 
 ### P1 — 功能增强
 
 | 任务 | 说明 |
 |------|------|
+| 一键优化求解器 | 基于方案设计器约束自动求解最优排产 |
 | 图表可视化 | 使用 Recharts 展示产能、利润、成本趋势 |
-| 一键优化求解 | 集成线性规划求解器 |
 | 方案对比 | 多方案横向对比 |
 
 ### P2 — 后端集成
@@ -312,13 +339,18 @@ gh repo clone QQ2385770680/zcyn_test
 
 ```bash
 # 将代码复制到 webdev 项目目录
-cp -r /home/ubuntu/zcyn_test/ibiz-platform/* /home/ubuntu/ibiz-platform/
+cp -r /home/ubuntu/zcyn_test/ibiz-platform/client /home/ubuntu/ibiz-sim/
+cp -r /home/ubuntu/zcyn_test/ibiz-platform/server /home/ubuntu/ibiz-sim/
+cp -r /home/ubuntu/zcyn_test/ibiz-platform/shared /home/ubuntu/ibiz-sim/
+cp /home/ubuntu/zcyn_test/ibiz-platform/package.json /home/ubuntu/ibiz-sim/
+cp /home/ubuntu/zcyn_test/ibiz-platform/tsconfig.json /home/ubuntu/ibiz-sim/
+cp /home/ubuntu/zcyn_test/ibiz-platform/vite.config.ts /home/ubuntu/ibiz-sim/
 
 # 安装依赖
-cd /home/ubuntu/ibiz-platform && pnpm install
+cd /home/ubuntu/ibiz-sim && pnpm install
 
-# 启动开发服务器
-pnpm run dev
+# 重启开发服务器
+# 使用 webdev_restart_server 工具
 ```
 
 **第四步：确认页面正常**
@@ -333,17 +365,19 @@ pnpm run dev
 3. 更新 `AI_RESUME.md` 中的项目状态
 4. 备份代码到 GitHub：
 ```bash
+cd /home/ubuntu/zcyn_test/ibiz-platform
+rm -rf client server shared
+cp -r /home/ubuntu/ibiz-sim/client ./
+cp -r /home/ubuntu/ibiz-sim/server ./
+cp -r /home/ubuntu/ibiz-sim/shared ./
+cp /home/ubuntu/ibiz-sim/package.json ./
+cp /home/ubuntu/ibiz-sim/tsconfig.json ./
+cp /home/ubuntu/ibiz-sim/vite.config.ts ./
+rm -rf client/node_modules server/node_modules shared/node_modules dist .manus .manus-logs
 cd /home/ubuntu/zcyn_test
-rm -rf ibiz-platform/client ibiz-platform/server ibiz-platform/shared
-cp -r /home/ubuntu/ibiz-platform/client /home/ubuntu/zcyn_test/ibiz-platform/
-cp -r /home/ubuntu/ibiz-platform/server /home/ubuntu/zcyn_test/ibiz-platform/
-cp -r /home/ubuntu/ibiz-platform/shared /home/ubuntu/zcyn_test/ibiz-platform/
-cp /home/ubuntu/ibiz-platform/*.md /home/ubuntu/zcyn_test/ibiz-platform/
-cp /home/ubuntu/ibiz-platform/*.json /home/ubuntu/zcyn_test/ibiz-platform/
-cp /home/ubuntu/ibiz-platform/*.ts /home/ubuntu/zcyn_test/ibiz-platform/
 git add -A && git commit -m "阶段N：xxx" && git push
 ```
 
 ---
 
-**最后更新**：2026-03-05 by AI 指挥官（阶段四 P0 核心功能完成后）
+**最后更新**：2026-03-06 by AI 指挥官（阶段六 方案设计器重构完成后）

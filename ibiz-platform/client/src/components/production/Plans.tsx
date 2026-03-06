@@ -7,6 +7,7 @@
  *   1. planStorage 中的传统方案（ProductionPlan）
  *   2. designerTypes 中的设计器方案 — 归类为"生产方案"
  * - 设计器方案支持"编辑"按钮跳转到方案设计器并加载
+ * - 点击方案卡片可跳转到生产模拟
  * - 收藏/取消收藏方案
  * - 复制方案
  * - 删除方案
@@ -59,6 +60,7 @@ import {
   deleteDesignPlan,
   type DesignPlanConfig,
 } from "@/lib/designerTypes";
+import { useDesignPlan } from "@/lib/DesignPlanContext";
 import { useLocation } from "wouter";
 
 const statusConfig: Record<PlanStatus, { label: string; className: string }> = {
@@ -85,6 +87,7 @@ interface UnifiedPlan {
 export function ProductionPlans() {
   const { config } = useConfig();
   const [, setLocation] = useLocation();
+  const { applyToSimulator } = useDesignPlan();
   const [plans, setPlans] = React.useState<ProductionPlan[]>([]);
   const [designPlans, setDesignPlans] = React.useState<(DesignPlanConfig & { id: string; createdAt: string; updatedAt: string })[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -141,6 +144,19 @@ export function ProductionPlans() {
       // 写入失败
     }
     setLocation("/production/designer");
+  };
+
+  // 进入模拟：将设计器方案加载到模拟器并跳转
+  const handleGoToSimulator = (dp: DesignPlanConfig & { id: string; createdAt: string; updatedAt: string }) => {
+    const planConfig: DesignPlanConfig = {
+      name: dp.name,
+      description: dp.description,
+      periodProductions: dp.periodProductions,
+      periodHiring: dp.periodHiring,
+      periodMachines: dp.periodMachines,
+    };
+    applyToSimulator(planConfig, config);
+    setLocation("/production/simulator");
   };
 
   // 合并两种来源的方案为统一列表
@@ -246,6 +262,7 @@ export function ProductionPlans() {
               onDuplicate={up.source === "legacy" ? handleDuplicate : undefined}
               onToggleStar={up.source === "legacy" ? handleToggleStar : undefined}
               onEdit={up.source === "designer" && up.designPlan ? () => handleEditDesignPlan(up.designPlan!) : undefined}
+              onGoToSimulator={up.source === "designer" && up.designPlan ? () => handleGoToSimulator(up.designPlan!) : undefined}
             />
           ))}
         </div>
@@ -261,6 +278,7 @@ function UnifiedPlanCard({
   onDuplicate,
   onToggleStar,
   onEdit,
+  onGoToSimulator,
 }: {
   plan: UnifiedPlan;
   usageStats: PlanUsageStats;
@@ -268,6 +286,7 @@ function UnifiedPlanCard({
   onDuplicate?: (id: string) => void;
   onToggleStar?: (id: string) => void;
   onEdit?: () => void;
+  onGoToSimulator?: () => void;
 }) {
   const isDesigner = plan.source === "designer";
   const usage = usageStats[plan.id];
@@ -318,13 +337,14 @@ function UnifiedPlanCard({
     : "text-emerald-600 border-emerald-200 bg-emerald-50";
 
   return (
-    <Card className="group hover:shadow-md transition-all duration-200 border-gray-100">
-      <CardHeader className="pb-3">
+    <Card className="group hover:shadow-md transition-all duration-200 border-gray-100 flex flex-col">
+      {/* 头部：标题 + 更多菜单 */}
+      <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
-          <div className="space-y-1 flex-1">
+          <div className="space-y-1 flex-1 min-w-0">
             <CardTitle className="text-sm flex items-center gap-2">
-              {plan.starred && <Star className="size-3.5 text-amber-400 fill-amber-400" />}
-              {plan.name}
+              {plan.starred && <Star className="size-3.5 text-amber-400 fill-amber-400 shrink-0" />}
+              <span className="truncate">{plan.name}</span>
             </CardTitle>
             <p className="text-xs text-gray-400 line-clamp-1">
               {plan.description || "暂无描述"}
@@ -335,7 +355,7 @@ function UnifiedPlanCard({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="opacity-0 group-hover:opacity-100 transition-opacity"
+                className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
               >
                 <MoreHorizontal className="size-4" />
               </Button>
@@ -345,6 +365,12 @@ function UnifiedPlanCard({
                 <DropdownMenuItem onClick={onEdit}>
                   <Pencil className="size-4" />
                   编辑方案
+                </DropdownMenuItem>
+              )}
+              {onGoToSimulator && (
+                <DropdownMenuItem onClick={onGoToSimulator}>
+                  <Play className="size-4" />
+                  进入模拟
                 </DropdownMenuItem>
               )}
               {onToggleStar && (
@@ -371,36 +397,40 @@ function UnifiedPlanCard({
           </DropdownMenu>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {/* 标签行：方案类型 + 使用频率 + 时间 */}
+
+      <CardContent className="flex-1 flex flex-col gap-3">
+        {/* 标签行：方案类型 + 使用频率 */}
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 gap-1">
+          <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 gap-1 text-xs">
             <Play className="size-3" />
             生产方案
           </Badge>
-          <Badge variant="outline" className={`gap-1 ${usageColor}`}>
+          <Badge variant="outline" className={`gap-1 text-xs ${usageColor}`}>
             <BarChart3 className="size-3" />
             {usageLabel}{loadCount > 0 && ` (${loadCount}次)`}
           </Badge>
-          <span className="text-xs text-gray-400 flex items-center gap-1 ml-auto">
-            <Clock className="size-3" />
-            {formatRelativeTime(plan.updatedAt)}
-          </span>
         </div>
 
-        {/* 使用详情 */}
-        {loadCount > 0 && lastUsedAt && (
-          <div className="text-xs text-gray-400">
-            最近使用：{formatRelativeTime(lastUsedAt)}
+        {/* 时间行：统一格式，创建时间 + 最近使用 */}
+        <div className="space-y-1 text-xs text-gray-400">
+          <div className="flex items-center gap-1">
+            <Clock className="size-3 shrink-0" />
+            <span>更新于 {formatRelativeTime(plan.updatedAt)}</span>
           </div>
-        )}
+          {loadCount > 0 && lastUsedAt && (
+            <div className="flex items-center gap-1">
+              <Play className="size-3 shrink-0" />
+              <span>最近模拟 {formatRelativeTime(lastUsedAt)}</span>
+            </div>
+          )}
+        </div>
 
         {/* 数据统计 */}
         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
           {isDesigner ? (
             <>
-              <div className="flex items-center gap-1 text-xs text-gray-500">
-                <span>{plan.designPlan?.periodProductions.length || 8} 期</span>
+              <div className="text-xs text-gray-500">
+                {plan.designPlan?.periodProductions.length || 8} 期
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <span className="text-amber-600">必{designStats.required}</span>
@@ -411,8 +441,8 @@ function UnifiedPlanCard({
             </>
           ) : (
             <>
-              <div className="flex items-center gap-1 text-xs text-gray-500">
-                <span>{plan.legacyPlan?.config.periods || 8} 期</span>
+              <div className="text-xs text-gray-500">
+                {plan.legacyPlan?.config.periods || 8} 期
               </div>
               <div className="flex items-center gap-1 text-sm font-medium text-emerald-600">
                 <TrendingUp className="size-3.5" />
@@ -422,18 +452,31 @@ function UnifiedPlanCard({
           )}
         </div>
 
-        {/* 设计器方案显示编辑按钮 */}
-        {onEdit && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full gap-1.5 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-            onClick={onEdit}
-          >
-            <Pencil className="size-3" />
-            编辑方案
-          </Button>
-        )}
+        {/* 操作按钮行 — 统一底部对齐 */}
+        <div className="flex items-center gap-2 pt-1 mt-auto">
+          {onEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+              onClick={onEdit}
+            >
+              <Pencil className="size-3" />
+              编辑方案
+            </Button>
+          )}
+          {onGoToSimulator && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 text-xs text-purple-600 border-purple-200 hover:bg-purple-50"
+              onClick={onGoToSimulator}
+            >
+              <Play className="size-3" />
+              进入模拟
+            </Button>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

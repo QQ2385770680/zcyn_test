@@ -514,7 +514,7 @@ export function ProductionDesigner() {
 
   return (
     <div className="space-y-5">
-      {/* Actions Bar — 顶部仅保留恢复/导入/导出和进入模拟验证 */}
+      {/* Actions Bar — 顶部操作栏 */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={initFromColorMap}>
@@ -530,7 +530,11 @@ export function ProductionDesigner() {
             导出
           </Button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
+            <Save className="size-3.5" />
+            保存方案
+          </Button>
           <Button
             size="sm"
             className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
@@ -616,16 +620,10 @@ export function ProductionDesigner() {
                 <ChevronRight className="size-4" />
               </Button>
             </div>
-            <div className="flex items-center gap-2">
-              <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
-                <Save className="size-3.5" />
-                保存方案
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-1 text-xs text-gray-500" onClick={copyCurrentToAll}>
-                <Copy className="size-3" />
-                复制到所有期
-              </Button>
-            </div>
+            <Button variant="ghost" size="sm" className="gap-1 text-xs text-gray-500" onClick={copyCurrentToAll}>
+              <Copy className="size-3" />
+              复制到所有期
+            </Button>
           </div>
 
           {/* Mode Legend */}

@@ -172,6 +172,8 @@ export interface PeriodResult {
   };
   /** 总产量（各产品合计） */
   totalOutput: { A: number; B: number; C: number; D: number };
+  /** 财务计算结果 */
+  financials: PeriodFinancials;
 }
 
 // ============================================================
@@ -253,7 +255,74 @@ export const PERIOD_COLOR_MAPS: Record<number, PeriodColorMap> = {
 };
 
 // ============================================================
-// 7. 全局配置
+// 7. 财务参数
+// ============================================================
+
+/** 单个产品的财务参数 */
+export interface ProductFinancials {
+  /** 产品名称 */
+  name: string;
+  /** 销售单价（元） */
+  sellingPrice: number;
+  /** 原材料单价（元/单位原材料） */
+  materialUnitCost: number;
+}
+
+/** 默认产品财务参数 */
+export const DEFAULT_PRODUCT_FINANCIALS: ProductFinancials[] = [
+  { name: "A", sellingPrice: 3500, materialUnitCost: 1 },
+  { name: "B", sellingPrice: 5200, materialUnitCost: 1 },
+  { name: "C", sellingPrice: 8500, materialUnitCost: 1 },
+  { name: "D", sellingPrice: 14000, materialUnitCost: 1 },
+];
+
+/** 人力成本参数 */
+export interface LaborCostParams {
+  /** 正班工人工资（元/人/期） */
+  normalWage: number;
+  /** 加班工资倍率（如 1.5 表示正班的1.5倍） */
+  overtimeMultiplier: number;
+  /** 雇佣成本（元/人） */
+  hiringCost: number;
+  /** 解雇成本（元/人） */
+  firingCost: number;
+}
+
+/** 默认人力成本参数 */
+export const DEFAULT_LABOR_COSTS: LaborCostParams = {
+  normalWage: 5000,
+  overtimeMultiplier: 1.5,
+  hiringCost: 3000,
+  firingCost: 5000,
+};
+
+/** 机器成本参数 */
+export interface MachineCostParams {
+  /** 机器购买单价（元/台） */
+  purchasePrice: number;
+  /** 机器维护费用（元/台/期） */
+  maintenanceCost: number;
+}
+
+/** 默认机器成本参数 */
+export const DEFAULT_MACHINE_COSTS: MachineCostParams = {
+  purchasePrice: 100000,
+  maintenanceCost: 2000,
+};
+
+/** 库存成本参数 */
+export interface InventoryCostParams {
+  /** 库存持有成本（元/单位/期） */
+  holdingCost: number;
+}
+
+/** 默认库存成本参数 */
+export const DEFAULT_INVENTORY_COSTS: InventoryCostParams = {
+  holdingCost: 500,
+};
+
+// ============================================================
+// 8. 全局配置
 // ============================================================
 
 /** 全局配置参数 */
@@ -272,6 +341,14 @@ export interface GlobalConfig {
   newWorkerEfficiency: number;
   /** 产品规格参数 */
   products: ProductSpec[];
+  /** 产品财务参数 */
+  productFinancials: ProductFinancials[];
+  /** 人力成本参数 */
+  laborCosts: LaborCostParams;
+  /** 机器成本参数 */
+  machineCosts: MachineCostParams;
+  /** 库存成本参数 */
+  inventoryCosts: InventoryCostParams;
 }
 
 /** 默认全局配置 */
@@ -283,10 +360,44 @@ export const DEFAULT_CONFIG: GlobalConfig = {
   maxHireRate: 50,
   newWorkerEfficiency: 25,
   products: [...DEFAULT_PRODUCTS],
+  productFinancials: DEFAULT_PRODUCT_FINANCIALS.map((p) => ({ ...p })),
+  laborCosts: { ...DEFAULT_LABOR_COSTS },
+  machineCosts: { ...DEFAULT_MACHINE_COSTS },
+  inventoryCosts: { ...DEFAULT_INVENTORY_COSTS },
 };
 
 // ============================================================
-// 8. 方案数据结构
+// 9. 财务计算结果
+// ============================================================
+
+/** 单期的财务计算结果 */
+export interface PeriodFinancials {
+  /** 各产品销售收入 */
+  revenue: { A: number; B: number; C: number; D: number; total: number };
+  /** 原材料成本 */
+  materialCost: { A: number; B: number; C: number; D: number; total: number };
+  /** 人工成本（正班） */
+  laborCostNormal: number;
+  /** 人工成本（加班） */
+  laborCostOvertime: number;
+  /** 雇佣成本 */
+  hiringCost: number;
+  /** 解雇成本 */
+  firingCost: number;
+  /** 机器购买成本 */
+  machinePurchaseCost: number;
+  /** 机器维护成本 */
+  machineMaintenanceCost: number;
+  /** 库存持有成本 */
+  inventoryHoldingCost: number;
+  /** 总成本 */
+  totalCost: number;
+  /** 净利润 */
+  netProfit: number;
+}
+
+// ============================================================
+// 10. 方案数据结构
 // ============================================================
 
 /** 方案状态 */

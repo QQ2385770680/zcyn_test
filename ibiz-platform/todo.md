@@ -1,7 +1,7 @@
 # iBizSim 智能决策辅助系统 — TODO 清单
 
 > 最后更新：2026-03-05  
-> 当前版本：阶段四（P0 核心功能完成）
+> 当前版本：阶段五（UI 重构完成）
 
 ---
 
@@ -51,7 +51,7 @@
   - [x] 机器约束计算（各产品机器占用 vs 可用机器）
   - [x] 产能计算（正常班产量 + 加班产量）
   - [x] 多期联动（工人变动：解雇/雇佣/新工人效率）
-- [x] 生产模拟器重写（Simulator.tsx）— 从 Mock 数据改为计算引擎驱动
+- [x] 生产模拟重写（Simulator.tsx）— 从 Mock 数据改为计算引擎驱动
   - [x] 四班次（一班/一加/二班/二加）× 四产品（A/B/C/D）排产输入
   - [x] 实时约束验证（6 个约束检查点，通过/警告/超限三态）
   - [x] 利用率概览卡片（工人/机器利用率百分比）
@@ -60,12 +60,19 @@
   - [x] 期数切换和重置功能
 - [x] 全局配置持久化
   - [x] ConfigContext 全局配置上下文（自动 localStorage 读写）
-  - [x] GlobalConfig 页面重写（基础参数 + 人力参数 + 产品规格表格）
+  - [x] GlobalConfig 页面重写（产品规格参数表格）
   - [x] Simulator 联动（从 ConfigContext 读取配置）
 - [x] 方案 CRUD 功能
   - [x] 方案存储服务（planStorage.ts）— localStorage CRUD
   - [x] Plans.tsx 重写 — 创建/搜索/收藏/复制/删除方案
   - [x] 空状态提示 + 快速新建卡片
+
+### 阶段五：UI 重构与命名规范化
+- [x] Tab 名称修改：模拟器 → 生产模拟，方案设计器 → 方案设计
+- [x] 全局配置精简：仅保留产品规格参数
+- [x] 移除初始数据功能（页面、路由、侧边栏菜单）
+- [x] 首页快速入口更新（初始数据 → 全局配置）
+- [x] 全站文案统一更新（Landing、Register、Home 等）
 
 ---
 
@@ -129,9 +136,8 @@
 |------|------|------|
 | `/dashboard` | 用户仪表盘 | Home.tsx |
 | `/dashboard/config` | 全局配置 | GlobalConfig.tsx |
-| `/dashboard/initial-data` | 初始数据 | InitialData.tsx |
-| `/dashboard/production/simulator` | 生产模拟器 | Production.tsx → Simulator.tsx |
-| `/dashboard/production/designer` | 方案设计器 | Production.tsx → Designer.tsx |
+| `/dashboard/production/simulator` | 生产模拟 | Production.tsx → Simulator.tsx |
+| `/dashboard/production/designer` | 方案设计 | Production.tsx → Designer.tsx |
 | `/dashboard/production/plans` | 我的方案 | Production.tsx → Plans.tsx |
 | `/dashboard/marketplace` | 方案市场 | Marketplace.tsx |
 

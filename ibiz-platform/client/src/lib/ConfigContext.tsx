@@ -8,7 +8,15 @@
  * - 所有子组件可通过 useConfig() 访问和修改配置
  */
 import React from "react";
-import { type GlobalConfig, DEFAULT_CONFIG, DEFAULT_PRODUCTS } from "./data";
+import {
+  type GlobalConfig,
+  DEFAULT_CONFIG,
+  DEFAULT_PRODUCTS,
+  DEFAULT_PRODUCT_FINANCIALS,
+  DEFAULT_LABOR_COSTS,
+  DEFAULT_MACHINE_COSTS,
+  DEFAULT_INVENTORY_COSTS,
+} from "./data";
 
 const STORAGE_KEY = "ibiz-global-config";
 
@@ -58,7 +66,11 @@ function isConfigDirty(config: GlobalConfig): boolean {
     config.minFireRate !== DEFAULT_CONFIG.minFireRate ||
     config.maxHireRate !== DEFAULT_CONFIG.maxHireRate ||
     config.newWorkerEfficiency !== DEFAULT_CONFIG.newWorkerEfficiency ||
-    JSON.stringify(config.products) !== JSON.stringify(DEFAULT_PRODUCTS)
+    JSON.stringify(config.products) !== JSON.stringify(DEFAULT_PRODUCTS) ||
+    JSON.stringify(config.productFinancials) !== JSON.stringify(DEFAULT_PRODUCT_FINANCIALS) ||
+    JSON.stringify(config.laborCosts) !== JSON.stringify(DEFAULT_LABOR_COSTS) ||
+    JSON.stringify(config.machineCosts) !== JSON.stringify(DEFAULT_MACHINE_COSTS) ||
+    JSON.stringify(config.inventoryCosts) !== JSON.stringify(DEFAULT_INVENTORY_COSTS)
   );
 }
 
@@ -76,7 +88,14 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const resetConfig = React.useCallback(() => {
-    const defaultCfg = { ...DEFAULT_CONFIG, products: [...DEFAULT_PRODUCTS] };
+    const defaultCfg = {
+      ...DEFAULT_CONFIG,
+      products: DEFAULT_PRODUCTS.map((p) => ({ ...p })),
+      productFinancials: DEFAULT_PRODUCT_FINANCIALS.map((p) => ({ ...p })),
+      laborCosts: { ...DEFAULT_LABOR_COSTS },
+      machineCosts: { ...DEFAULT_MACHINE_COSTS },
+      inventoryCosts: { ...DEFAULT_INVENTORY_COSTS },
+    };
     setConfig(defaultCfg);
   }, []);
 

@@ -139,13 +139,13 @@ export default function Landing() {
             <FeatureCard
               icon={<Factory className="size-6" />}
               color="emerald"
-              title="生产模拟器"
+              title="生产模拟"
               description="调整排产参数，模拟各期产能分配，实时验证工人、机器、加班等约束条件，直观展示利用率和成本。"
             />
             <FeatureCard
               icon={<Target className="size-6" />}
               color="blue"
-              title="方案设计器"
+              title="方案设计"
               description="配置优化目标（利润最大化/成本最小化），设置约束条件，一键求解最优排产方案。"
             />
             <FeatureCard
@@ -191,17 +191,17 @@ export default function Landing() {
             <StepCard
               step="01"
               title="配置参数"
-              description="设置企业初始状态、机器数量、工人数量等全局参数和初始数据。"
+              description="设置产品规格参数，影响所有排产计算。"
             />
             <StepCard
               step="02"
               title="模拟排产"
-              description="在模拟器中调整各期各产品的班次排产，实时查看约束验证和利用率。"
+              description="在生产模拟中调整各期各产品的班次排产，实时查看约束验证和利用率。"
             />
             <StepCard
               step="03"
               title="优化决策"
-              description="使用方案设计器一键求解最优方案，对比不同策略，选择最佳决策。"
+              description="使用方案设计一键求解最优方案，对比不同策略，选择最佳决策。"
             />
           </div>
         </div>

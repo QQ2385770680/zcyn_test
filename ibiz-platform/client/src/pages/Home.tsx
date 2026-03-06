@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Factory,
   Settings2,
-  Database,
   ShoppingCart,
   ArrowRight,
   BarChart3,
@@ -80,24 +79,24 @@ export default function Home() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <QuickAction
             icon={<Factory className="size-5" />}
-            title="生产模拟器"
+            title="生产模拟"
             description="调整参数和各期班次排产，实时验证约束条件"
             color="emerald"
             onClick={() => setLocation("/production/simulator")}
           />
           <QuickAction
             icon={<FileText className="size-5" />}
-            title="方案设计器"
+            title="方案设计"
             description="创建和编辑生产决策方案，配置计算规则"
             color="blue"
             onClick={() => setLocation("/production/designer")}
           />
           <QuickAction
-            icon={<Database className="size-5" />}
-            title="初始数据"
-            description="设置企业初始状态参数和竞争环境数据"
+            icon={<Settings2 className="size-5" />}
+            title="全局配置"
+            description="设置产品规格参数，影响所有排产计算"
             color="amber"
-            onClick={() => setLocation("/initial-data")}
+            onClick={() => setLocation("/config")}
           />
           <QuickAction
             icon={<ShoppingCart className="size-5" />}
@@ -118,7 +117,7 @@ export default function Home() {
               <FileText className="size-6 text-gray-400" />
             </div>
             <p className="text-sm text-gray-500 mb-1">暂无最近活动</p>
-            <p className="text-xs text-gray-400">开始使用模拟器后，您的操作记录将显示在这里</p>
+            <p className="text-xs text-gray-400">开始使用生产模拟后，您的操作记录将显示在这里</p>
           </CardContent>
         </Card>
       </div>

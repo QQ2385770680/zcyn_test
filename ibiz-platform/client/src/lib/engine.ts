@@ -18,6 +18,7 @@ import {
   type ConstraintResults,
   type PeriodResult,
   type PeriodDecision,
+  type PeriodFinancials,
   type GlobalConfig,
   getMachineCoeff,
   getLaborCoeff,
@@ -178,7 +179,97 @@ export function calcConstraints(
 }
 
 // ============================================================
-// 4. 单期完整计算
+// 4. 财务计算
+// ============================================================
+
+/**
+ * 计算单期的财务数据
+ *
+ * 收入 = Σ(各产品总产量 × 对应售价)
+ * 原材料成本 = Σ(各产品总产量 × 原材料需求 × 原材料单价)
+ * 人工成本(正班) = (期初人数 - 本期解雇) × 正班工资
+ * 人工成本(加班) = (一加消耗人力 + 二加消耗人力) × 正班工资 × 加班倍率
+ * 雇佣成本 = 本期雇佣 × 雇佣单价
+ * 解雇成本 = 本期解雇 × 解雇单价
+ * 机器购买成本 = 本期购买 × 机器单价
+ * 机器维护成本 = 本期机器 × 维护单价
+ */
+export function calcPeriodFinancials(
+  totalOutput: { A: number; B: number; C: number; D: number },
+  resources: PeriodResources,
+  laborUsed: { shift1: number; ot1: number; shift2: number; ot2: number },
+  config: GlobalConfig
+): PeriodFinancials {
+  const pf = config.productFinancials;
+  const lc = config.laborCosts;
+  const mc = config.machineCosts;
+  const ic = config.inventoryCosts;
+  const products = config.products;
+
+  // 收入计算
+  const revenueA = totalOutput.A * (pf[0]?.sellingPrice || 0);
+  const revenueB = totalOutput.B * (pf[1]?.sellingPrice || 0);
+  const revenueC = totalOutput.C * (pf[2]?.sellingPrice || 0);
+  const revenueD = totalOutput.D * (pf[3]?.sellingPrice || 0);
+  const totalRevenue = revenueA + revenueB + revenueC + revenueD;
+
+  // 原材料成本 = 产量 × 原材料需求 × 原材料单价
+  const matCostA = totalOutput.A * (products[0]?.rawMaterial || 0) * (pf[0]?.materialUnitCost || 0);
+  const matCostB = totalOutput.B * (products[1]?.rawMaterial || 0) * (pf[1]?.materialUnitCost || 0);
+  const matCostC = totalOutput.C * (products[2]?.rawMaterial || 0) * (pf[2]?.materialUnitCost || 0);
+  const matCostD = totalOutput.D * (products[3]?.rawMaterial || 0) * (pf[3]?.materialUnitCost || 0);
+  const totalMatCost = matCostA + matCostB + matCostC + matCostD;
+
+  // 人工成本（正班）= 实际在岗人数 × 工资
+  const activeWorkers = resources.initialWorkers - resources.fired + resources.hired;
+  const laborCostNormal = activeWorkers * lc.normalWage;
+
+  // 人工成本（加班）= 加班消耗人力 × 工资 × 加班倍率
+  const overtimeLabor = laborUsed.ot1 + laborUsed.ot2;
+  const laborCostOvertime = overtimeLabor * lc.normalWage * lc.overtimeMultiplier;
+
+  // 雇佣/解雇成本
+  const hiringCost = resources.hired * lc.hiringCost;
+  const firingCost = resources.fired * lc.firingCost;
+
+  // 机器成本
+  const machinePurchaseCost = resources.machinesPurchased * mc.purchasePrice;
+  const machineMaintenanceCost = resources.machines * mc.maintenanceCost;
+
+  // 库存持有成本（简化版：假设全部售出，库存成本为0）
+  const inventoryHoldingCost = 0;
+
+  // 总成本
+  const totalCost =
+    totalMatCost +
+    laborCostNormal +
+    laborCostOvertime +
+    hiringCost +
+    firingCost +
+    machinePurchaseCost +
+    machineMaintenanceCost +
+    inventoryHoldingCost;
+
+  // 净利润
+  const netProfit = totalRevenue - totalCost;
+
+  return {
+    revenue: { A: revenueA, B: revenueB, C: revenueC, D: revenueD, total: totalRevenue },
+    materialCost: { A: matCostA, B: matCostB, C: matCostC, D: matCostD, total: totalMatCost },
+    laborCostNormal,
+    laborCostOvertime,
+    hiringCost,
+    firingCost,
+    machinePurchaseCost,
+    machineMaintenanceCost,
+    inventoryHoldingCost,
+    totalCost,
+    netProfit,
+  };
+}
+
+// ============================================================
+// 5. 单期完整计算
 // ============================================================
 
 /**
@@ -188,8 +279,9 @@ export function calcPeriodResult(
   period: number,
   production: PeriodProduction,
   resources: PeriodResources,
-  products: ProductSpec[]
+  config: GlobalConfig
 ): PeriodResult {
+  const products = config.products;
   const constraints = calcConstraints(production, resources, products);
 
   // 各班次资源消耗
@@ -215,6 +307,9 @@ export function calcPeriodResult(
     D: production.shift1.D + production.ot1.D + production.shift2.D + production.ot2.D,
   };
 
+  // 财务计算
+  const financials = calcPeriodFinancials(totalOutput, resources, laborUsed, config);
+
   return {
     period,
     production,
@@ -223,6 +318,7 @@ export function calcPeriodResult(
     laborUsed,
     machineUsed,
     totalOutput,
+    financials,
   };
 }
 
@@ -260,7 +356,7 @@ export function calcAllPeriods(
     );
 
     const production = productions[i] || emptyPeriodProduction();
-    const result = calcPeriodResult(period, production, resources, config.products);
+    const result = calcPeriodResult(period, production, resources, config);
     results.push(result);
   }
 

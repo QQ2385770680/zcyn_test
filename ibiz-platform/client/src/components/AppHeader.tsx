@@ -22,10 +22,9 @@ import { useLocation } from "wouter";
 const routeLabels: Record<string, string> = {
   "/": "首页",
   "/config": "全局配置",
-  "/initial-data": "初始数据",
   "/production": "生产决策",
-  "/production/simulator": "模拟器",
-  "/production/designer": "方案设计器",
+  "/production/simulator": "生产模拟",
+  "/production/designer": "方案设计",
   "/production/plans": "我的方案",
   "/marketplace": "方案市场",
 };

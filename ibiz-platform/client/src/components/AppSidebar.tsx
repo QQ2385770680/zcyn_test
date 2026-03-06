@@ -23,7 +23,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Settings2,
-  Database,
   Factory,
   ShoppingCart,
   ChevronDown,
@@ -87,16 +86,7 @@ export function AppSidebar() {
                   <span>全局配置</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={location === "/initial-data"}
-                  tooltip="初始数据"
-                  onClick={() => setLocation("/initial-data")}
-                >
-                  <Database className="size-4" />
-                  <span>初始数据</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -126,7 +116,7 @@ export function AppSidebar() {
                           isActive={location === "/production/simulator"}
                           onClick={() => setLocation("/production/simulator")}
                         >
-                          <span>模拟器</span>
+                          <span>生产模拟</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
@@ -134,7 +124,7 @@ export function AppSidebar() {
                           isActive={location === "/production/designer"}
                           onClick={() => setLocation("/production/designer")}
                         >
-                          <span>方案设计器</span>
+                          <span>方案设计</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>

@@ -1,6 +1,6 @@
 /**
  * DecisionDomainLayout — 决策域通用布局
- * 每个决策域包含三个标签页：模拟器、方案设计器、我的方案
+ * 每个决策域包含三个标签页：生产模拟、方案设计、我的方案
  * 注意：nest 模式下 useLocation 返回相对路径
  */
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -58,10 +58,10 @@ export function DecisionDomainLayout({
       <Tabs value={getActiveTab()} onValueChange={handleTabChange}>
         <TabsList className="bg-gray-100/80">
           <TabsTrigger value="simulator" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            模拟器
+            生产模拟
           </TabsTrigger>
           <TabsTrigger value="designer" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            方案设计器
+            方案设计
           </TabsTrigger>
           <TabsTrigger value="plans" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
             我的方案

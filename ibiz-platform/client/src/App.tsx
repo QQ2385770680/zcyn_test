@@ -23,7 +23,6 @@ import NotFound from "@/pages/NotFound";
 // User pages
 import Home from "@/pages/Home";
 import GlobalConfig from "@/pages/GlobalConfig";
-import InitialData from "@/pages/InitialData";
 import Production from "@/pages/Production";
 import Marketplace from "@/pages/Marketplace";
 
@@ -45,7 +44,6 @@ function UserDashboard() {
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/config" component={GlobalConfig} />
-          <Route path="/initial-data" component={InitialData} />
           <Route path="/production/:tab?" component={Production} />
           <Route path="/marketplace" component={Marketplace} />
           <Route component={NotFound} />

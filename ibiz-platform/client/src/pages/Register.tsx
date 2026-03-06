@@ -72,10 +72,10 @@ export default function Register() {
             加入 iBizSim<br />开启智能决策之旅
           </h1>
           <p className="text-gray-500 leading-relaxed mb-8">
-            注册账号后即可使用全部基础功能，包括生产模拟器、方案设计器和方案市场。
+            注册账号后即可使用全部基础功能，包括生产模拟、方案设计和方案市场。
           </p>
           <div className="space-y-3">
-            <FeatureItem text="免费使用生产模拟器和方案设计器" />
+            <FeatureItem text="免费使用生产模拟和方案设计" />
             <FeatureItem text="保存最多 10 个决策方案" />
             <FeatureItem text="浏览和获取方案市场中的免费方案" />
           </div>

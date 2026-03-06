@@ -130,3 +130,62 @@
 2. 多期联动完善（库存结转、机器折旧/购买）
 3. 方案导入/导出（JSON 格式）
 4. 图表可视化（产能趋势、利润走势、成本结构）
+
+---
+
+## 阶段五：UI 重构与命名规范化（已完成）
+
+**完成时间**：2026-03-05  
+**Git Commit**：待提交
+
+根据用户需求对项目进行了以下重构：
+
+### 重构内容
+
+| 变更项 | 修改前 | 修改后 | 涉及文件 |
+|--------|--------|--------|----------|
+| Tab 名称 | 模拟器 | 生产模拟 | DecisionDomainLayout, AppHeader, AppSidebar, Home, Landing, Register, Production, Simulator |
+| Tab 名称 | 方案设计器 | 方案设计 | 同上 |
+| 全局配置 | 含基础参数、人力资源、财务参数、产品规格 | 仅保留产品规格参数 | GlobalConfig.tsx |
+| 初始数据 | 独立页面和路由 | 完全移除 | App.tsx, AppSidebar.tsx, AppHeader.tsx, Home.tsx |
+| 首页快速入口 | 含"初始数据"入口 | 替换为"全局配置"入口 | Home.tsx |
+
+### 修改文件清单
+
+| 文件 | 变更说明 |
+|------|----------|
+| `pages/GlobalConfig.tsx` | 重写，仅保留产品规格参数表格和参数说明卡片 |
+| `App.tsx` | 移除 InitialData 导入和路由 |
+| `components/AppSidebar.tsx` | 移除"初始数据"菜单项，修改子菜单名称 |
+| `components/AppHeader.tsx` | 移除 initial-data 路由标签，修改面包屑名称 |
+| `components/DecisionDomainLayout.tsx` | Tab 名称修改 |
+| `pages/Home.tsx` | 快速入口修改，文案更新 |
+| `pages/Landing.tsx` | 功能特性和使用流程文案更新 |
+| `pages/Register.tsx` | 注册页文案更新 |
+| `pages/Production.tsx` | 注释更新 |
+| `components/production/Simulator.tsx` | 注释和内部文案更新 |
+| `components/production/Designer.tsx` | 注释更新 |
+
+### 验证结果
+
+| 页面 | 验证项 | 结果 |
+|------|--------|------|
+| Dashboard 首页 | 侧边栏无"初始数据"，快速入口显示"生产模拟"/"方案设计"/"全局配置"/"方案市场" | 通过 |
+| 全局配置 | 仅显示产品规格参数表格（A/B/C/D 机器时/人力时/原材料） | 通过 |
+| 生产决策 | 子菜单显示"生产模拟"/"方案设计"/"我的方案" | 通过 |
+| 构建 | pnpm run build 无错误 | 通过 |
+
+---
+
+## 当前状态
+
+阶段五 UI 重构完成。全局配置已精简为仅产品规格参数，初始数据功能已移除，所有 Tab 名称已统一为"生产模拟"和"方案设计"。
+
+**恢复指令**：详见 `AI_RESUME.md`  
+**任务清单**：详见 `todo.md`
+
+**下一步任务**（优先级排序）：
+1. 模拟器 UI 交互体验优化
+2. 我的方案页面完善（方案编辑、详情展开、加载到模拟器）
+3. 收入/成本/利润计算完善
+4. 图表可视化

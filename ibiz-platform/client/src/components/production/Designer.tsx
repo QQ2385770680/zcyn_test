@@ -1,5 +1,5 @@
 /**
- * ProductionDesigner — 方案设计器
+ * ProductionDesigner — 方案设计
  * 设计风格：清新简洁，表单式方案配置
  * 功能：创建/编辑生产方案，设置优化目标和约束条件
  */

@@ -78,7 +78,7 @@ const SHIFTS = [
 
 const MODE_OPTIONS: { value: ProductionMode; label: string; color: string; desc: string }[] = [
   { value: "required", label: "必填", color: "bg-amber-100 text-amber-800 border-amber-300", desc: "求解器必须分配产量" },
-  { value: "optional", label: "选填", color: "bg-orange-50 text-orange-700 border-orange-200", desc: "求解器可选择是否分配" },
+  { value: "optional", label: "选填", color: "bg-sky-50 text-sky-700 border-sky-200", desc: "求解器可选择是否分配" },
   { value: "blank", label: "不填", color: "bg-gray-100 text-gray-500 border-gray-200", desc: "不生产，产量为 0" },
   { value: "fixed", label: "固定", color: "bg-emerald-50 text-emerald-700 border-emerald-200", desc: "用户指定固定产量" },
 ];
@@ -612,7 +612,7 @@ export function ProductionDesigner() {
                                     {MODE_OPTIONS.map(opt => (
                                       <SelectItem key={opt.value} value={opt.value} className="text-xs">
                                         <span className="flex items-center gap-1.5">
-                                          <span className={`w-2 h-2 rounded-full ${opt.value === "required" ? "bg-amber-500" : opt.value === "optional" ? "bg-orange-400" : opt.value === "blank" ? "bg-gray-300" : "bg-emerald-500"}`} />
+                                          <span className={`w-2 h-2 rounded-full ${opt.value === "required" ? "bg-amber-500" : opt.value === "optional" ? "bg-sky-400" : opt.value === "blank" ? "bg-gray-300" : "bg-emerald-500"}`} />
                                           {opt.label}
                                         </span>
                                       </SelectItem>
@@ -942,7 +942,7 @@ export function ProductionDesigner() {
 function RuleColorBadge({ color }: { color: CellColor }) {
   const styles: Record<CellColor, { bg: string; label: string }> = {
     required: { bg: "bg-amber-400", label: "必" },
-    optional: { bg: "bg-orange-400", label: "选" },
+    optional: { bg: "bg-sky-400", label: "选" },
     free: { bg: "bg-white border border-gray-300", label: "自" },
     disabled: { bg: "bg-gray-400", label: "禁" },
     zero: { bg: "bg-gray-200", label: "0" },

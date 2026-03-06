@@ -89,7 +89,7 @@ function useToast() {
 
 const CELL_COLORS = {
   required: { bg: "bg-amber-50", border: "border-amber-300", text: "text-amber-700", label: "必填" },
-  optional: { bg: "bg-orange-50", border: "border-orange-300", text: "text-orange-700", label: "选填" },
+  optional: { bg: "bg-sky-50", border: "border-sky-300", text: "text-sky-700", label: "选填" },
   free: { bg: "bg-white", border: "border-gray-200", text: "text-gray-700", label: "自由" },
   disabled: { bg: "bg-gray-100", border: "border-gray-200", text: "text-gray-400", label: "禁区" },
   blank: { bg: "bg-gray-50", border: "border-gray-200", text: "text-gray-400", label: "不填" },
@@ -314,8 +314,8 @@ export function ProductionSimulator() {
           黄格 = 必填
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded-sm bg-orange-100 border border-orange-300" />
-          橙格 = 选填
+          <span className="inline-block w-3 h-3 rounded-sm bg-sky-100 border border-sky-300" />
+          蓝格 = 选填
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-3 rounded-sm bg-white border border-gray-300" />
@@ -336,6 +336,41 @@ export function ProductionSimulator() {
         </span>
       </div>
 
+      {/* ===== 初始参数（P1上方） ===== */}
+      <Card className="border-amber-200 bg-amber-50/30">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Factory className="size-4 text-amber-600" />
+            <span className="text-sm font-semibold text-amber-800">初始参数</span>
+            <Badge variant="outline" className="text-[10px] h-5 border-amber-300 text-amber-700">必填</Badge>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs text-amber-700 font-medium">初始工人数</label>
+              <Input
+                type="number"
+                min={0}
+                value={config.initialWorkers || ""}
+                onChange={(e) => updateConfig({ initialWorkers: parseInt(e.target.value) || 0 })}
+                className="h-8 text-sm bg-white border-amber-300 focus:border-amber-500"
+                placeholder="如：113"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-amber-700 font-medium">初始机器数</label>
+              <Input
+                type="number"
+                min={0}
+                value={config.initialMachines || ""}
+                onChange={(e) => updateConfig({ initialMachines: parseInt(e.target.value) || 0 })}
+                className="h-8 text-sm bg-white border-amber-300 focus:border-amber-500"
+                placeholder="如：157"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ===== 1-8期 Accordion ===== */}
       <div className="space-y-2">
         {results.map((result, idx) => (
@@ -352,9 +387,6 @@ export function ProductionSimulator() {
             }
             onOptimize={() => handleOptimizePeriod(idx)}
             activeDesign={activeDesign}
-            onUpdateInitialParam={idx === 0 ? (field, value) => {
-              updateConfig({ [field]: value });
-            } : undefined}
           />
         ))}
       </div>
@@ -480,7 +512,6 @@ interface PeriodAccordionProps {
   ) => void;
   onOptimize: () => void;
   activeDesign: DesignPlanConfig | null;
-  onUpdateInitialParam?: (field: "initialWorkers" | "initialMachines", value: number) => void;
 }
 
 function PeriodAccordion({
@@ -493,7 +524,6 @@ function PeriodAccordion({
   onUpdateProduction,
   onOptimize,
   activeDesign,
-  onUpdateInitialParam,
 }: PeriodAccordionProps) {
   const period = periodIdx + 1;
   const colorMap = PERIOD_COLOR_MAPS[period] || PERIOD_COLOR_MAPS[8];
@@ -517,12 +547,8 @@ function PeriodAccordion({
         }
       }
     }
-    // 没有方案设计时，回退到规则表颜色映射
-    const ruleColor = colorMap[product]?.[shiftKey] || "free";
-    // 将规则表颜色映射到 CELL_COLORS key
-    if (ruleColor === "zero") return "blank";
-    if (ruleColor === "disabled") return "disabled";
-    return ruleColor as CellColorKey;
+    // 没有方案设计时，所有格子为白色（自由）
+    return "free";
   };
   const totalOutput =
     result.totalOutput.A + result.totalOutput.B + result.totalOutput.C + result.totalOutput.D;
@@ -611,40 +637,6 @@ function PeriodAccordion({
       {/* 展开内容 */}
       <CollapsibleContent>
         <div className="mt-1 p-4 border border-gray-200 rounded-lg bg-white space-y-4">
-          {/* 第1期初始参数（必填） */}
-          {period === 1 && onUpdateInitialParam && (
-            <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50/50 border border-amber-200 rounded-lg">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-amber-800 flex items-center gap-1">
-                  初始工人数
-                  <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700">必填</span>
-                </label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={r.initialWorkers || ""}
-                  onChange={(e) => onUpdateInitialParam("initialWorkers", parseInt(e.target.value) || 0)}
-                  className="h-8 text-sm bg-white border-amber-300 focus:border-amber-500"
-                  placeholder="如：113"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-amber-800 flex items-center gap-1">
-                  初始机器数
-                  <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700">必填</span>
-                </label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={r.machines || ""}
-                  onChange={(e) => onUpdateInitialParam("initialMachines", parseInt(e.target.value) || 0)}
-                  className="h-8 text-sm bg-white border-amber-300 focus:border-amber-500"
-                  placeholder="如：157"
-                />
-              </div>
-            </div>
-          )}
-
           {/* 资源信息行 */}
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
             <ResourceCell label="本期机器" value={String(r.machines)} />

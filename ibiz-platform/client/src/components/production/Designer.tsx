@@ -410,16 +410,42 @@ export function ProductionDesigner() {
       return;
     }
     const now = new Date().toISOString();
-    const id = currentPlanId || generateId();
+    const trimmedName = plan.name.trim();
+    // 根据方案名称判断：同名覆盖，不同名新建
+    const existingByName = savedPlans.find(p => p.name === trimmedName);
+    let id: string;
+    let createdAt: string;
+    if (existingByName && currentPlanId === existingByName.id) {
+      // 当前正在编辑的方案，同名覆盖
+      id = existingByName.id;
+      createdAt = existingByName.createdAt;
+    } else if (existingByName && !currentPlanId) {
+      // 无关联 ID 但同名已存在，覆盖
+      id = existingByName.id;
+      createdAt = existingByName.createdAt;
+    } else if (currentPlanId && existingByName && currentPlanId !== existingByName.id) {
+      // 改了名字且新名字已存在于另一个方案 → 覆盖那个同名方案
+      id = existingByName.id;
+      createdAt = existingByName.createdAt;
+    } else if (currentPlanId && !existingByName) {
+      // 改了名字且新名字不存在 → 创建新方案（保留旧方案）
+      id = generateId();
+      createdAt = now;
+    } else {
+      // 全新方案
+      id = generateId();
+      createdAt = now;
+    }
     saveDesignPlan({
       ...plan,
       id,
-      createdAt: currentPlanId ? (savedPlans.find(p => p.id === id)?.createdAt || now) : now,
+      createdAt,
       updatedAt: now,
     });
     setCurrentPlanId(id);
     setSavedPlans(loadDesignPlans());
-    showToast(`方案「${plan.name}」已保存`);
+    const isNew = !existingByName || (currentPlanId && currentPlanId !== existingByName.id && !existingByName);
+    showToast(isNew ? `方案「${trimmedName}」已新建保存` : `方案「${trimmedName}」已更新`);
   };
 
   const handleLoad = (saved: ReturnType<typeof loadDesignPlans>[0]) => {
@@ -520,35 +546,31 @@ export function ProductionDesigner() {
         </div>
       </div>
 
-      {/* Basic Info */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="size-4 text-emerald-500" />
-            方案基本信息
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-sm">方案名称</Label>
-              <Input
-                placeholder="例如：第1-8期最优排产方案"
-                value={plan.name}
-                onChange={(e) => setPlan(prev => ({ ...prev, name: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">方案描述</Label>
-              <Input
-                placeholder="描述该方案的策略和目标..."
-                value={plan.description}
-                onChange={(e) => setPlan(prev => ({ ...prev, description: e.target.value }))}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Basic Info — 紧凑行内布局 */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+          <Sparkles className="size-4 text-emerald-500 shrink-0" />
+          <Input
+            placeholder="方案名称（必填）"
+            value={plan.name}
+            onChange={(e) => setPlan(prev => ({ ...prev, name: e.target.value }))}
+            className="h-9 text-sm"
+          />
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <Input
+            placeholder="方案描述（选填）"
+            value={plan.description}
+            onChange={(e) => setPlan(prev => ({ ...prev, description: e.target.value }))}
+            className="h-9 text-sm text-gray-500"
+          />
+        </div>
+        {currentPlanId && (
+          <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-200 bg-emerald-50 shrink-0">
+            编辑中
+          </Badge>
+        )}
+      </div>
 
       {/* Section Tabs */}
       <Tabs value={activeSection} onValueChange={setActiveSection}>
@@ -595,19 +617,15 @@ export function ProductionDesigner() {
               </Button>
             </div>
             <div className="flex items-center gap-2">
+              <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
+                <Save className="size-3.5" />
+                保存方案
+              </Button>
               <Button variant="ghost" size="sm" className="gap-1 text-xs text-gray-500" onClick={copyCurrentToAll}>
                 <Copy className="size-3" />
                 复制到所有期
               </Button>
             </div>
-          </div>
-
-          {/* 保存方案按钮 — 移到复制所有期下方 */}
-          <div className="flex justify-end">
-            <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
-              <Save className="size-3.5" />
-              保存方案
-            </Button>
           </div>
 
           {/* Mode Legend */}
@@ -732,7 +750,6 @@ export function ProductionDesigner() {
               保存方案
             </Button>
           </div>
-
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -921,7 +938,6 @@ export function ProductionDesigner() {
               保存方案
             </Button>
           </div>
-
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">

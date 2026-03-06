@@ -68,7 +68,7 @@ pnpm run dev
 
 ---
 
-## 四、当前项目状态（截至 2026-03-05 阶段三）
+## 四、当前项目状态（截至 2026-03-05 阶段四）
 
 ### 4.1 路由架构
 
@@ -131,9 +131,22 @@ App.tsx 中使用了 wouter 的 `nest` 属性来实现路由前缀。**在 nest 
 - 侧边栏、面包屑中的路径比较和跳转使用相对路径（如 `/config` 而非 `/dashboard/config`）
 - 跨 nest 跳转（如从 dashboard 退出登录跳到 `/login`）需使用 `window.location.href`
 
-### 4.4 已知问题
+### 4.4 阶段四新增：P0 核心功能
 
-目前所有页面均使用**静态 Mock 数据**，尚未接入真实数据源或计算逻辑。所有交互按钮（保存、优化、删除等）仅有前端 UI，无实际后端功能。
+阶段四实现了三大核心功能，将系统从纯 UI 展示升级为可用的计算工具：
+
+| 功能模块 | 文件 | 说明 |
+|----------|------|------|
+| 数据类型定义 | `lib/data.ts` | 产品规格、期数结构、方案类型、颜色映射（与 rule.xls 一致） |
+| 计算引擎 | `lib/engine.ts` | 资源迭代、6 个约束检查点、产能计算、多期联动 |
+| 全局配置上下文 | `lib/ConfigContext.tsx` | React Context + localStorage 自动持久化 |
+| 方案存储服务 | `lib/planStorage.ts` | localStorage CRUD（创建/复制/删除/收藏） |
+
+**已验证**：模拟器输入 A 产品一加=50 时，C2 约束=-15.385（超限），人力消耗=7.69，机器消耗=10.58，均与公式手算结果一致。
+
+### 4.5 已知问题
+
+收入/成本/利润计算尚未实现（需要市场价格数据），库存结转和机器折旧/购买逻辑待完善。方案设计器（Designer.tsx）仍为 UI 骨架，未接入计算引擎。
 
 ---
 
@@ -157,7 +170,11 @@ ibiz-platform/
 │       │   ├── useMobile.tsx
 │       │   └── usePersistFn.ts
 │       ├── lib/
-│       │   └── utils.ts                    # 工具函数 (cn)
+│       │   ├── utils.ts                    # 工具函数 (cn)
+│       │   ├── data.ts                     # 数据类型定义（产品规格/期数/方案/颜色映射）
+│       │   ├── engine.ts                   # 生产决策计算引擎
+│       │   ├── ConfigContext.tsx            # 全局配置上下文（localStorage 持久化）
+│       │   └── planStorage.ts              # 方案存储服务（localStorage CRUD）
 │       ├── pages/
 │       │   ├── Landing.tsx                # 网站主页
 │       │   ├── Login.tsx                  # 用户登录
@@ -229,14 +246,13 @@ ibiz-platform/
 
 详细清单请参阅 `todo.md`，以下为摘要：
 
-### P0 — 核心功能
+### P0 — 核心功能（已完成大部分，剩余项如下）
 
 | 任务 | 涉及文件 | 说明 |
 |------|----------|------|
-| 生产决策计算引擎 | `production/Simulator.tsx` | 将 Mock 数据替换为真实排产计算逻辑 |
-| 约束验证逻辑 | `production/Simulator.tsx` | 工人/机器/加班约束实时验证 |
-| 方案 CRUD | `production/Plans.tsx`, `Designer.tsx` | 方案创建、保存、复制、删除 |
-| 全局配置持久化 | `GlobalConfig.tsx` | 配置参数保存到 localStorage |
+| 收入/成本/利润计算 | `lib/engine.ts` | 需要市场价格数据 |
+| 多期联动完善 | `lib/engine.ts` | 库存结转、机器折旧/购买 |
+| 方案导入/导出 | `lib/planStorage.ts` | JSON 格式导入/导出 |
 
 ### P1 — 功能增强
 
@@ -330,4 +346,4 @@ git add -A && git commit -m "阶段N：xxx" && git push
 
 ---
 
-**最后更新**：2026-03-05 by AI 指挥官（阶段三路由重构完成后）
+**最后更新**：2026-03-05 by AI 指挥官（阶段四 P0 核心功能完成后）

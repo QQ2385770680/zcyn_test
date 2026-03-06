@@ -464,25 +464,29 @@ function solveResourcePlan(
 /**
  * 单期产量求解
  *
- * 严格按约束顺序，使用 Round-Robin 均匀分配：
+ * 严格按用户指定的求解顺序：
  *
- * 1. shift1 → 让 C5（一班可用机器）接近 0
- *    主约束：machines（机器容量）
- *    次约束：totalAvailableWorkers（人力容量）—— 因为 shift1+shift2 共享人力池
+ * 1. shift1（第一班）→ 让 C5（一班可用机器）最小
+ *    C5 = machines - machineShift1
+ *    主约束：machines（机器容量，shift1 独享）
+ *    次约束：totalAvailableWorkers（人力上限，shift1+shift2 共享）
  *
- * 2. shift2 → 让 C1（一班可用人数）接近 0
- *    主约束：remainingLabor = totalAvailableWorkers - laborShift1
- *    次约束：machines（机器容量）—— 因为 shift2 也消耗机器
+ * 2. shift2（第二班）→ 让 C1（一班可用人数）最小
+ *    C1 = totalAvailableWorkers - laborShift1 - laborShift2
+ *    主约束：remainingLabor（剩余人力）
+ *    次约束：machines（机器容量，shift2 独享时段）
  *
- * 3. ot1 → 让 C7（二班可用机器）接近 0
+ * 3. ot1（一加）→ 让 C7（二班可用机器）最小
  *    C7 = machines - machineShift2 - machineOt1 × 2
- *    主约束：(machines - machineShift2) / 2（机器容量，乘数2）
- *    次约束：laborShift1 / 2（C2 约束：一加人力 ≤ 一班人力/2）
+ *    主约束：machines - shift2Machine（剩余机器容量，乘数2）
+ *    次约束：shift1Labor（C2 人力约束：laborShift1 - laborOt1×2 ≥ 0）
  *
- * 4. ot2 → 让 C8（二加可用机器）最小化
+ * 4. ot2（二加）→ 让 C8（二加可用机器）最小
  *    C8 = machines - machineOt2 × 2
- *    主约束：machines / 2（机器容量，乘数2）
- *    次约束：laborShift2 / 2（C4 约束：二加人力 ≤ 二班人力/2）
+ *    主约束：machines（机器容量，乘数2）
+ *    次约束：shift2Labor（C4 人力约束：laborShift2 - laborOt2×2 ≥ 0）
+ *
+ * 每步目标：在不违反任何约束的前提下，尽量把对应资源用完（约束值最小）
  */
 function solvePeriodProduction(
   resources: PeriodResources,
@@ -493,32 +497,18 @@ function solvePeriodProduction(
   const production = emptyPeriodProduction();
   const products = config.products;
 
-  // ---- 预计算：动态确定 shift1 的人力预算 ----
-  // shift1 的主约束是机器，但人力是共享的（shift1+shift2）
-  // 如果机器是瓶颈，shift1 只用很少人力，剩余留给 shift2
-  // 如果人力是瓶颈，需要合理分配
-  // 策略：先用机器容量估算 shift1 最大人力消耗，然后取 min(机器能力, 人力一半)
-  const avgMachineCoeff = products.reduce((s, pr) => s + getMachineCoeff(pr), 0) / 4;
-  const avgLaborCoeff = products.reduce((s, pr) => s + getLaborCoeff(pr), 0) / 4;
-  // shift1 机器能力对应的人力消耗
-  const shift1MaxLaborByMachine = avgMachineCoeff > 0
-    ? (resources.machines / avgMachineCoeff) * avgLaborCoeff
-    : Infinity;
-  // shift1 人力预算 = min(机器能力对应人力, 总人力的一半)
-  const shift1LaborBudget = Math.min(
-    shift1MaxLaborByMachine * 1.1, // 给 10% 宽裕
-    resources.totalAvailableWorkers * 0.5
-  );
-
-  // ---- Step 1: shift1 → 让 C5（一班可用机器）接近 0 ----
+  // ---- Step 1: shift1（第一班）→ 让 C5（一班可用机器）最小 ----
+  // C5 = machines - machineShift1
+  // shift1 独享机器池，尽量把机器用完
+  // 同时受人力总量约束（shift1+shift2 共享人力池）
   {
     const cells = getShiftCells("shift1", period, config, designConfig);
     const allocated = allocateRoundRobin(
       cells,
-      resources.machines,              // 主约束：机器容量（独享）
+      resources.machines,                // 主约束：机器容量（让 C5 最小）
       "machineCoeff",
       1,
-      shift1LaborBudget,               // 次约束：动态人力预算
+      resources.totalAvailableWorkers,   // 次约束：总人力上限
       "laborCoeff",
       1,
     );
@@ -527,39 +517,24 @@ function solvePeriodProduction(
     }
   }
 
-  // 计算 shift1 消耗
+  // 计算 shift1 实际消耗
   const shift1Labor = PRODUCTS.reduce(
     (s, p) => s + production.shift1[p] * getLaborCoeff(products[PRODUCT_INDEX[p]]), 0
   );
-  const shift1Machine = PRODUCTS.reduce(
-    (s, p) => s + production.shift1[p] * getMachineCoeff(products[PRODUCT_INDEX[p]]), 0
-  );
 
-  // ---- 预计算：确定 shift2 的机器预算 ----
-  // shift2 和 ot1 共享机器池（C7 = machines - machineShift2 - machineOt1×2）
-  // 如果给 shift2 用完所有机器，ot1 就没有机器可用
-  // 策略：给 shift2 分配约 60% 的机器，留 40% 给 ot1（因为 ot1 乘数=2，实际只能用 20%）
-  // 但如果人力不够，shift2 会被人力限制，自然留出机器给 ot1
-  const remainingLabor = resources.totalAvailableWorkers - shift1Labor;
-  // 估算 shift2 用完剩余人力需要多少机器
-  const shift2MaxMachineByLabor = avgLaborCoeff > 0
-    ? (remainingLabor / avgLaborCoeff) * avgMachineCoeff
-    : Infinity;
-  // shift2 机器预算 = min(人力能力对应机器, 机器总量的 60%)
-  const shift2MachineBudget = Math.min(
-    shift2MaxMachineByLabor * 1.1,
-    resources.machines * 0.6
-  );
-
-  // ---- Step 2: shift2 → 让 C1（一班可用人数）接近 0 ----
+  // ---- Step 2: shift2（第二班）→ 让 C1（一班可用人数）最小 ----
+  // C1 = totalAvailableWorkers - laborShift1 - laborShift2
+  // shift2 的目标是把剩余人力用完
+  // 同时受机器容量约束（shift2 独享时段的机器）
   {
+    const remainingLabor = resources.totalAvailableWorkers - shift1Labor;
     const cells = getShiftCells("shift2", period, config, designConfig);
     const allocated = allocateRoundRobin(
       cells,
-      remainingLabor,                   // 主约束：剩余人力
+      remainingLabor,                    // 主约束：剩余人力（让 C1 最小）
       "laborCoeff",
       1,
-      shift2MachineBudget,              // 次约束：机器预算（留空间给 ot1）
+      resources.machines,                // 次约束：机器容量
       "machineCoeff",
       1,
     );
@@ -568,7 +543,7 @@ function solvePeriodProduction(
     }
   }
 
-  // 计算 shift2 消耗
+  // 计算 shift2 实际消耗
   const shift2Labor = PRODUCTS.reduce(
     (s, p) => s + production.shift2[p] * getLaborCoeff(products[PRODUCT_INDEX[p]]), 0
   );
@@ -576,37 +551,41 @@ function solvePeriodProduction(
     (s, p) => s + production.shift2[p] * getMachineCoeff(products[PRODUCT_INDEX[p]]), 0
   );
 
-  // ---- Step 3: ot1 → 让 C7（二班可用机器）接近 0 ----
+  // ---- Step 3: ot1（一加）→ 让 C7（二班可用机器）最小 ----
   // C7 = machines - machineShift2 - machineOt1 × 2
+  // ot1 和 shift2 共享机器池，ot1 的机器消耗翻倍
+  // 同时受 C2 人力约束：laborShift1 - laborOt1×2 ≥ 0
   {
     const remainingMachineForOt1 = resources.machines - shift2Machine;
     const cells = getShiftCells("ot1", period, config, designConfig);
     const allocated = allocateRoundRobin(
       cells,
-      remainingMachineForOt1,           // 主约束：C7 的机器容量
+      remainingMachineForOt1,            // 主约束：剩余机器容量（让 C7 最小）
       "machineCoeff",
-      2,                                // 加班机器乘数 = 2
-      shift1Labor,                      // 次约束：C2 的人力容量
+      2,                                 // 加班机器乘数 = 2
+      shift1Labor,                       // 次约束：C2 人力上限
       "laborCoeff",
-      2,                                // 加班人力乘数 = 2
+      2,                                 // 加班人力乘数 = 2
     );
     for (const p of PRODUCTS) {
       production.ot1[p] = allocated[p];
     }
   }
 
-  // ---- Step 4: ot2 → 让 C8（二加可用机器）最小化 ----
+  // ---- Step 4: ot2（二加）→ 让 C8（二加可用机器）最小 ----
   // C8 = machines - machineOt2 × 2
+  // ot2 独享机器池，机器消耗翻倍
+  // 同时受 C4 人力约束：laborShift2 - laborOt2×2 ≥ 0
   {
     const cells = getShiftCells("ot2", period, config, designConfig);
     const allocated = allocateRoundRobin(
       cells,
-      resources.machines,              // 主约束：C8 的机器容量
+      resources.machines,                // 主约束：机器容量（让 C8 最小）
       "machineCoeff",
-      2,                                // 加班机器乘数 = 2
-      shift2Labor,                      // 次约束：C4 的人力容量
+      2,                                 // 加班机器乘数 = 2
+      shift2Labor,                       // 次约束：C4 人力上限
       "laborCoeff",
-      2,                                // 加班人力乘数 = 2
+      2,                                 // 加班人力乘数 = 2
     );
     for (const p of PRODUCTS) {
       production.ot2[p] = allocated[p];

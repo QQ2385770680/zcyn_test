@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "build:gh-pages": "GITHUB_PAGES_BASE=/zcyn_test/ vite build && cp dist/index.html dist/404.html",
+    "build:gh-pages": "vite build && cp dist/index.html dist/404.html",
     "start": "NODE_ENV=production node dist/index.js",
     "preview": "vite preview --host",
     "check": "tsc --noEmit",

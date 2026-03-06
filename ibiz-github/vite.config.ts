@@ -6,12 +6,10 @@ import { defineConfig } from "vite";
 /**
  * GitHub Pages 部署配置
  *
- * 部署地址：https://<username>.github.io/zcyn_test/
- * 通过环境变量 GITHUB_PAGES_BASE 可覆盖 base 路径：
- *   - 子路径部署（默认）：GITHUB_PAGES_BASE=/zcyn_test/
- *   - 自定义域名部署：GITHUB_PAGES_BASE=/
+ * 当前使用自定义域名：www.wuushuang.com，base 路径为 /
+ * 如果取消自定义域名，改用 github.io/zcyn_test/，需将 base 改为 /zcyn_test/
  */
-const BASE_PATH = process.env.GITHUB_PAGES_BASE || "/zcyn_test/";
+const BASE_PATH = process.env.GITHUB_PAGES_BASE || "/";
 
 export default defineConfig({
   base: BASE_PATH,

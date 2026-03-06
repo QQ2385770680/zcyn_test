@@ -353,8 +353,8 @@ export interface GlobalConfig {
 
 /** 默认全局配置 */
 export const DEFAULT_CONFIG: GlobalConfig = {
-  initialMachines: 157,
-  initialWorkers: 113,
+  initialMachines: 0,
+  initialWorkers: 0,
   periods: 8,
   minFireRate: 3,
   maxHireRate: 50,

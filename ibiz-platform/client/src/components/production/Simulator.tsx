@@ -359,25 +359,25 @@ export function ProductionSimulator() {
         <span className="text-xs font-semibold text-amber-800 whitespace-nowrap">一期初始参数</span>
         <Badge variant="outline" className="text-[10px] h-4 px-1.5 border-amber-300 text-amber-700">必填</Badge>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-amber-700">工人数</label>
-          <Input
-            type="number"
-            min={0}
-            value={config.initialWorkers || ""}
-            onChange={(e) => updateConfig({ initialWorkers: parseInt(e.target.value) || 0 })}
-            className="h-7 w-20 text-sm text-center bg-white border-amber-300 focus:border-amber-500"
-            placeholder="113"
-          />
-        </div>
-        <div className="flex items-center gap-2">
           <label className="text-xs text-amber-700">机器数</label>
           <Input
             type="number"
             min={0}
-            value={config.initialMachines || ""}
-            onChange={(e) => updateConfig({ initialMachines: parseInt(e.target.value) || 0 })}
+            value={config.initialMachines ?? ""}
+            onChange={(e) => updateConfig({ initialMachines: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
             className="h-7 w-20 text-sm text-center bg-white border-amber-300 focus:border-amber-500"
-            placeholder="157"
+            placeholder="0"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-amber-700">工人数</label>
+          <Input
+            type="number"
+            min={0}
+            value={config.initialWorkers ?? ""}
+            onChange={(e) => updateConfig({ initialWorkers: e.target.value === "" ? 0 : parseInt(e.target.value) || 0 })}
+            className="h-7 w-20 text-sm text-center bg-white border-amber-300 focus:border-amber-500"
+            placeholder="0"
           />
         </div>
       </div>

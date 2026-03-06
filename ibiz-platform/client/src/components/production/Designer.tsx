@@ -38,11 +38,14 @@ import {
   Info,
   CheckCircle2,
   Grid3X3,
+  Play,
 } from "lucide-react";
 import React from "react";
 
 import { useConfig } from "@/lib/ConfigContext";
 import { PERIOD_COLOR_MAPS, type CellColor, generateId } from "@/lib/data";
+import { useDesignPlan } from "@/lib/DesignPlanContext";
+import { useLocation } from "wouter";
 import {
   type ProductionMode,
   type CellConfig,
@@ -128,6 +131,8 @@ function useToast() {
 export function ProductionDesigner() {
   const { config } = useConfig();
   const { showToast, ToastComponent } = useToast();
+  const { applyToSimulator } = useDesignPlan();
+  const [, setLocation] = useLocation();
 
   // 当前方案 — 初始化时所有期行为模式默认为留空
   const [plan, setPlan] = React.useState<DesignPlanConfig>(() => {
@@ -425,6 +430,18 @@ export function ProductionDesigner() {
           <Button size="sm" className="gap-1.5 bg-emerald-600 hover:bg-emerald-700" onClick={handleSave}>
             <Save className="size-3.5" />
             保存方案
+          </Button>
+          <Button
+            size="sm"
+            className="gap-1.5 bg-purple-600 hover:bg-purple-700 text-white"
+            onClick={() => {
+              applyToSimulator(plan, config);
+              setLocation("/production/simulator");
+              showToast("正在跳转到模拟器...");
+            }}
+          >
+            <Play className="size-3.5" />
+            进入模拟验证
           </Button>
         </div>
       </div>

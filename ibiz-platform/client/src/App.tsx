@@ -9,6 +9,7 @@ import { Switch, Route } from "wouter";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ConfigProvider } from "@/lib/ConfigContext";
+import { DesignPlanProvider } from "@/lib/DesignPlanContext";
 import { ProtectedRoute, AdminRoute, PublicOnlyRoute } from "@/components/RouteGuards";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { AdminLayout } from "@/components/AdminLayout";
@@ -79,7 +80,9 @@ function App() {
     <ThemeProvider defaultTheme="light">
       <AuthProvider>
         <ConfigProvider>
-          <AppRoutes />
+          <DesignPlanProvider>
+            <AppRoutes />
+          </DesignPlanProvider>
         </ConfigProvider>
       </AuthProvider>
     </ThemeProvider>

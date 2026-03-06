@@ -50,6 +50,7 @@ import {
   Save,
   FolderOpen,
   Info,
+  Sparkles,
 } from "lucide-react";
 import React from "react";
 
@@ -80,6 +81,8 @@ import {
   loadPlans,
   updatePlan,
 } from "@/lib/planStorage";
+
+import { useDesignPlan } from "@/lib/DesignPlanContext";
 
 // ============================================================
 // 工具函数
@@ -138,6 +141,10 @@ export function ProductionSimulator() {
   const [currentPeriod, setCurrentPeriod] = React.useState("1");
   const [activeTab, setActiveTab] = React.useState("current");
   const { showToast, ToastComponent } = useToast();
+  const { consumeSimData } = useDesignPlan();
+
+  // 设计方案来源标记
+  const [designSource, setDesignSource] = React.useState<string | null>(null);
 
   // 保存方案弹窗
   const [showSaveDialog, setShowSaveDialog] = React.useState(false);
@@ -153,6 +160,18 @@ export function ProductionSimulator() {
   const [decisions, setDecisions] = React.useState<PeriodDecision[]>(() =>
     generateDefaultDecisions(config)
   );
+
+  // 检查是否有来自设计器的待应用数据
+  React.useEffect(() => {
+    const simData = consumeSimData();
+    if (simData) {
+      setProductions(simData.productions);
+      setDecisions(simData.decisions);
+      setDesignSource(simData.designPlan.name || "未命名方案");
+      setCurrentPeriod("1");
+      showToast("已加载设计方案到模拟器，可开始调整和验证", "info");
+    }
+  }, []); // 仅在组件挂载时检查一次
 
   // 资源面板展开/折叠
   const [resourcesExpanded, setResourcesExpanded] = React.useState(false);
@@ -256,6 +275,7 @@ export function ProductionSimulator() {
   const handleResetAll = () => {
     setProductions(Array.from({ length: config.periods }, () => emptyPeriodProduction()));
     setDecisions(generateDefaultDecisions(config));
+    setDesignSource(null);
     showToast("所有期数已重置", "info");
   };
 
@@ -438,6 +458,17 @@ export function ProductionSimulator() {
                 <p>当前期 {constraintPassCount} 个约束满足，{6 - constraintPassCount} 个未满足</p>
               </TooltipContent>
             </Tooltip>
+
+            {/* 设计方案来源标记 */}
+            {designSource && (
+              <Badge
+                variant="outline"
+                className="hidden sm:flex text-purple-600 border-purple-200 bg-purple-50 gap-1"
+              >
+                <Sparkles className="size-3" />
+                来自设计：{designSource}
+              </Badge>
+            )}
 
             {/* 当期利润快速显示 */}
             <Badge

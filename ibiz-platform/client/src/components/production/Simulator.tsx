@@ -56,7 +56,7 @@ import {
 } from "@/lib/engine";
 import { useDesignPlan, designToProductions, designToDecisions } from "@/lib/DesignPlanContext";
 import { loadDesignPlans, type DesignPlanConfig } from "@/lib/designerTypes";
-import { optimizeSinglePeriod, optimizeAllPeriods } from "@/lib/optimizer";
+import { solveOptimal, solveSinglePeriod } from "@/lib/solver";
 import { recordPlanUsage } from "@/lib/planStorage";
 
 // ============================================================
@@ -221,9 +221,10 @@ export function ProductionSimulator() {
   };
 
   const handleOptimizeAll = () => {
-    const optimized = optimizeAllPeriods(config, decisions, activeDesign);
-    setProductions(optimized);
-    showToast("已完成全局最优排产", "success");
+    const result = solveOptimal(config, activeDesign);
+    setProductions(result.productions);
+    setDecisions(result.decisions);
+    showToast(`已完成全局最优排产（耗时 ${result.elapsed.toFixed(1)}ms，A-B差=${result.balance.abDiff}，C-D差=${result.balance.cdDiff}）`, "success");
   };
 
   const handleOptimizePeriod = (periodIdx: number) => {
@@ -233,7 +234,7 @@ export function ProductionSimulator() {
     const resources = tempResults[periodIdx]?.resources;
     if (!resources) return;
 
-    const optimized = optimizeSinglePeriod(resources, config, period, activeDesign);
+    const optimized = solveSinglePeriod(resources, config, period, activeDesign);
     setProductions((prev) => {
       const next = [...prev];
       next[periodIdx] = optimized;

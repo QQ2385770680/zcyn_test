@@ -440,3 +440,21 @@
 2. 收入/成本/利润计算（需要市场价格数据）
 3. 多期联动完善（库存结转、机器折旧/购买）
 4. 一键优化求解器
+
+## 阶段八：UI 优化（Manus 环境）
+
+### 完成内容
+1. **首页标题修改**：Landing 页面导航栏和页脚 "无双·iBizSim" → "无双·iBizSim智能决策引擎"
+2. **侧边栏导航流畅度优化**：
+   - React.lazy 懒加载所有页面组件，减少路由切换阻塞
+   - useTransition 非阻塞导航点击
+3. **侧边栏展开/收起动画优化**：
+   - 缓动曲线从 ease-linear 改为 cubic-bezier(0.4,0,0.2,1)
+   - duration 从 200ms 提升到 300ms
+   - Collapsible 子菜单添加高度+透明度组合动画
+   - 侧边栏文字折叠时平滑淡出
+   - SidebarInset 主内容区 margin 过渡
+4. **修复页面切换闪烁**：移除 key={location} 强制重渲染和 page-transition 动画
+
+### Manus 检查点
+- `afa2381f` — 闪烁修复后最终版本

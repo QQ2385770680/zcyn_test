@@ -52,6 +52,8 @@
   --color-success: oklch(0.696 0.17 162.48);
   --color-warning: oklch(0.769 0.188 70.08);
   --color-info: oklch(0.623 0.214 259.815);
+  --animate-collapsible-down: collapsible-down 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-collapsible-up: collapsible-up 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* iBizSim Fresh Green Theme — inspired by wuushuang.com */
@@ -162,5 +164,43 @@
     filter: blur(40px);
     opacity: 0.4;
     pointer-events: none;
+  }
+
+  /* Collapsible submenu animations */
+  @keyframes collapsible-down {
+    from {
+      height: 0;
+      opacity: 0;
+    }
+    to {
+      height: var(--radix-collapsible-content-height);
+      opacity: 1;
+    }
+  }
+
+  @keyframes collapsible-up {
+    from {
+      height: var(--radix-collapsible-content-height);
+      opacity: 1;
+    }
+    to {
+      height: 0;
+      opacity: 0;
+    }
+  }
+
+  /* Sidebar text fade during collapse/expand */
+  [data-slot="sidebar-inner"] span,
+  [data-slot="sidebar-inner"] [data-slot="sidebar-group-label"] {
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  [data-collapsible="icon"] [data-slot="sidebar-inner"] span:not([data-slot="sidebar-menu-button"] > svg + span):last-child {
+    opacity: 0;
+  }
+
+  /* Smooth sidebar rail hover indicator */
+  [data-slot="sidebar-rail"]::after {
+    transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }

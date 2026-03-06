@@ -5,6 +5,7 @@
  * 2. 用户路由：/dashboard/* (需用户登录) — nest 模式，内部用相对路径
  * 3. 管理员路由：/admin/* (需管理员角色) — nest 模式，内部用相对路径
  */
+import React, { Suspense } from "react";
 import { Switch, Route } from "wouter";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -13,25 +14,30 @@ import { DesignPlanProvider } from "@/lib/DesignPlanContext";
 import { ProtectedRoute, AdminRoute, PublicOnlyRoute } from "@/components/RouteGuards";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { AdminLayout } from "@/components/AdminLayout";
-
-// Public pages
-import Landing from "@/pages/Landing";
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import AdminLogin from "@/pages/AdminLogin";
 import NotFound from "@/pages/NotFound";
 
-// User pages
-import Home from "@/pages/Home";
-import GlobalConfig from "@/pages/GlobalConfig";
-import Production from "@/pages/Production";
-import Marketplace from "@/pages/Marketplace";
+// Lazy-loaded pages for smoother navigation
+const Landing = React.lazy(() => import("@/pages/Landing"));
+const Login = React.lazy(() => import("@/pages/Login"));
+const Register = React.lazy(() => import("@/pages/Register"));
+const AdminLogin = React.lazy(() => import("@/pages/AdminLogin"));
+const Home = React.lazy(() => import("@/pages/Home"));
+const GlobalConfig = React.lazy(() => import("@/pages/GlobalConfig"));
+const Production = React.lazy(() => import("@/pages/Production"));
+const Marketplace = React.lazy(() => import("@/pages/Marketplace"));
+const AdminOverview = React.lazy(() => import("@/pages/admin/Overview"));
+const UserManagement = React.lazy(() => import("@/pages/admin/UserManagement"));
+const PlanManagement = React.lazy(() => import("@/pages/admin/PlanManagement"));
+const SystemSettings = React.lazy(() => import("@/pages/admin/SystemSettings"));
 
-// Admin pages
-import AdminOverview from "@/pages/admin/Overview";
-import UserManagement from "@/pages/admin/UserManagement";
-import PlanManagement from "@/pages/admin/PlanManagement";
-import SystemSettings from "@/pages/admin/SystemSettings";
+/** Minimal loading fallback — keeps layout stable during lazy load */
+function PageLoader() {
+  return (
+    <div className="flex-1 flex items-center justify-center p-12">
+      <div className="size-6 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+    </div>
+  );
+}
 
 /**
  * User dashboard routes
@@ -42,13 +48,15 @@ function UserDashboard() {
   return (
     <ProtectedRoute>
       <DashboardLayout>
-        <Switch>
-          <Route path="/" component={Home} />
-          <Route path="/config" component={GlobalConfig} />
-          <Route path="/production/:tab?" component={Production} />
-          <Route path="/marketplace" component={Marketplace} />
-          <Route component={NotFound} />
-        </Switch>
+        <Suspense fallback={<PageLoader />}>
+          <Switch>
+            <Route path="/" component={Home} />
+            <Route path="/config" component={GlobalConfig} />
+            <Route path="/production/:tab?" component={Production} />
+            <Route path="/marketplace" component={Marketplace} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
       </DashboardLayout>
     </ProtectedRoute>
   );
@@ -63,13 +71,15 @@ function AdminPanel() {
   return (
     <AdminRoute>
       <AdminLayout>
-        <Switch>
-          <Route path="/" component={AdminOverview} />
-          <Route path="/users" component={UserManagement} />
-          <Route path="/plans" component={PlanManagement} />
-          <Route path="/settings" component={SystemSettings} />
-          <Route component={NotFound} />
-        </Switch>
+        <Suspense fallback={<PageLoader />}>
+          <Switch>
+            <Route path="/" component={AdminOverview} />
+            <Route path="/users" component={UserManagement} />
+            <Route path="/plans" component={PlanManagement} />
+            <Route path="/settings" component={SystemSettings} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
       </AdminLayout>
     </AdminRoute>
   );
@@ -91,6 +101,7 @@ function App() {
 
 function AppRoutes() {
   return (
+    <Suspense fallback={<PageLoader />}>
     <Switch>
       {/* Public routes */}
       <Route path="/">
@@ -127,6 +138,7 @@ function AppRoutes() {
       {/* Fallback */}
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 

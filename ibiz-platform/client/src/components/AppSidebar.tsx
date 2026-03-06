@@ -33,14 +33,21 @@ import {
 import { useLocation } from "wouter";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/contexts/AuthContext";
-import React from "react";
+import React, { useTransition, useCallback } from "react";
 
 export function AppSidebar() {
   const [location, setLocation] = useLocation();
   const { user, logout } = useAuth();
+  const [isPending, startTransition] = useTransition();
   // nest 模式下 location 是相对路径，如 "/" "/config" "/production/simulator"
   const isProductionActive = location.startsWith("/production");
   const [productionOpen, setProductionOpen] = React.useState(isProductionActive);
+
+  const navigate = useCallback((path: string) => {
+    startTransition(() => {
+      setLocation(path);
+    });
+  }, [setLocation, startTransition]);
 
   const handleLogout = () => {
     logout();
@@ -54,7 +61,7 @@ export function AppSidebar() {
       <SidebarHeader className="px-4 py-4">
         <div
           className="flex items-center gap-3 group-data-[collapsible=icon]:justify-center cursor-pointer"
-          onClick={() => setLocation("/")}
+          onClick={() => navigate("/")}
         >
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500 text-white font-bold text-sm">
             iB
@@ -80,7 +87,7 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   isActive={location === "/config"}
                   tooltip="全局配置"
-                  onClick={() => setLocation("/config")}
+                  onClick={() => navigate("/config")}
                 >
                   <Settings2 className="size-4" />
                   <span>全局配置</span>
@@ -109,14 +116,14 @@ export function AppSidebar() {
                         const sidebar = document.querySelector('[data-state]');
                         const isCollapsed = sidebar?.getAttribute('data-state') === 'collapsed';
                         if (isCollapsed) {
-                          setLocation("/production/simulator");
+                          navigate("/production/simulator");
                         }
                       }}
                     >
                       <Factory className="size-4" />
                       <span>生产决策</span>
                       <ChevronDown
-                        className={`ml-auto size-3.5 transition-transform duration-200 ${productionOpen ? "rotate-180" : ""}`}
+                        className={`ml-auto size-3.5 transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] ${productionOpen ? "rotate-180" : ""}`}
                       />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
@@ -125,7 +132,7 @@ export function AppSidebar() {
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton
                           isActive={location === "/production/simulator"}
-                          onClick={() => setLocation("/production/simulator")}
+                          onClick={() => navigate("/production/simulator")}
                         >
                           <span>生产模拟</span>
                         </SidebarMenuSubButton>
@@ -133,7 +140,7 @@ export function AppSidebar() {
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton
                           isActive={location === "/production/designer"}
-                          onClick={() => setLocation("/production/designer")}
+                          onClick={() => navigate("/production/designer")}
                         >
                           <span>方案设计</span>
                         </SidebarMenuSubButton>
@@ -141,7 +148,7 @@ export function AppSidebar() {
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton
                           isActive={location === "/production/plans"}
-                          onClick={() => setLocation("/production/plans")}
+                          onClick={() => navigate("/production/plans")}
                         >
                           <span>我的方案</span>
                         </SidebarMenuSubButton>
@@ -165,7 +172,7 @@ export function AppSidebar() {
                 <SidebarMenuButton
                   isActive={location === "/marketplace"}
                   tooltip="方案市场"
-                  onClick={() => setLocation("/marketplace")}
+                  onClick={() => navigate("/marketplace")}
                 >
                   <ShoppingCart className="size-4" />
                   <span>方案市场</span>

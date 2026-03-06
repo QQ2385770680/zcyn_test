@@ -32,7 +32,7 @@ export default function Landing() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500 text-white font-bold text-sm">
               iB
             </div>
-            <span className="font-semibold text-gray-900">无双 · iBizSim</span>
+            <span className="font-semibold text-gray-900">无双 · iBizSim智能决策引擎</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-gray-600">
             <a href="#features" className="hover:text-emerald-600 transition-colors">功能特性</a>
@@ -220,7 +220,7 @@ export default function Landing() {
                 iB
               </div>
               <div>
-                <span className="font-semibold text-gray-900">无双 · iBizSim</span>
+                <span className="font-semibold text-gray-900">无双 · iBizSim智能决策引擎</span>
                 <span className="text-gray-400 text-sm ml-2">智能决策辅助系统</span>
               </div>
             </div>

@@ -5,7 +5,7 @@
  */
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useLocation } from "wouter";
-import React from "react";
+import React, { useTransition } from "react";
 
 interface DecisionDomainLayoutProps {
   title: string;
@@ -36,9 +36,13 @@ export function DecisionDomainLayout({
     return "simulator";
   };
 
+  const [isPending, startTransition] = useTransition();
+
   const handleTabChange = (value: string) => {
-    if (value === "simulator") setLocation(`${basePath}/simulator`);
-    else setLocation(`${basePath}/${value}`);
+    startTransition(() => {
+      if (value === "simulator") setLocation(`${basePath}/simulator`);
+      else setLocation(`${basePath}/${value}`);
+    });
   };
 
   return (
@@ -68,15 +72,17 @@ export function DecisionDomainLayout({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="simulator" className="mt-4">
-          {simulatorContent}
-        </TabsContent>
-        <TabsContent value="designer" className="mt-4">
-          {designerContent}
-        </TabsContent>
-        <TabsContent value="plans" className="mt-4">
-          {plansContent}
-        </TabsContent>
+        <div className={`mt-4 transition-opacity duration-150 ${isPending ? 'opacity-60' : 'opacity-100'}`}>
+          <TabsContent value="simulator" className="mt-0">
+            {simulatorContent}
+          </TabsContent>
+          <TabsContent value="designer" className="mt-0">
+            {designerContent}
+          </TabsContent>
+          <TabsContent value="plans" className="mt-0">
+            {plansContent}
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   );

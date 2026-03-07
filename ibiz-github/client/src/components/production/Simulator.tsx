@@ -262,17 +262,61 @@ export function ProductionSimulator() {
     });
   };
 
-  /** 联动自动求解：对 periodIdx 之后的所有期调用本期最优 */
+  /** 联动自动求解：对 periodIdx 之后的所有期重新计算雇佣决策 + 最优排产 */
   const autoSolveAfter = React.useCallback((periodIdx: number, currentProductions: PeriodProduction[], currentDecisions: PeriodDecision[]) => {
     if (!autoSolveLinked || !activeDesign) return { productions: currentProductions, decisions: currentDecisions };
     const newProductions = [...currentProductions];
-    const newDecisions = [...currentDecisions];
+    const newDecisions = [...currentDecisions.map(d => ({ ...d }))];
+
     for (let i = periodIdx + 1; i < config.periods; i++) {
       const period = i + 1;
+
+      // 1. 根据方案预设重新计算该期的雇佣决策
       const tempResults = calcAllPeriods(config, newProductions, newDecisions);
       const resources = tempResults[i]?.resources;
       if (!resources) break;
-      const optimized = solveSinglePeriod(resources, config, period, activeDesign);
+
+      const hiringConfig = activeDesign.periodHiring[i];
+      if (hiringConfig) {
+        const initialWorkers = resources.initialWorkers;
+        const minFire = Math.ceil(initialWorkers * (config.minFireRate / 100));
+        const maxHire = Math.floor(initialWorkers * (config.maxHireRate / 100));
+        const fired = minFire;
+        let hired: number;
+
+        switch (hiringConfig.mode) {
+          case "max-hire":
+            hired = maxHire;
+            break;
+          case "balance":
+            hired = minFire;
+            break;
+          case "flexible":
+            // 灵活调整模式保留用户已输入的值
+            hired = newDecisions[i].hired;
+            break;
+          case "range": {
+            const hMin = Math.max(0, hiringConfig.hiredRangeMin);
+            const hMax = Math.min(maxHire, hiringConfig.hiredRangeMax);
+            hired = Math.round((hMin + hMax) / 2);
+            break;
+          }
+          case "fixed":
+            hired = Math.min(maxHire, Math.max(0, hiringConfig.fixedHired));
+            break;
+          default:
+            hired = maxHire;
+        }
+
+        newDecisions[i] = { ...newDecisions[i], hired, fired };
+      }
+
+      // 2. 重新计算资源（雇佣决策已更新）并求解最优排产
+      const updatedResults = calcAllPeriods(config, newProductions, newDecisions);
+      const updatedResources = updatedResults[i]?.resources;
+      if (!updatedResources) break;
+
+      const optimized = solveSinglePeriod(updatedResources, config, period, activeDesign);
       newProductions[i] = optimized;
     }
     return { productions: newProductions, decisions: newDecisions };
@@ -295,7 +339,9 @@ export function ProductionSimulator() {
       };
       // 联动自动求解后续期
       if (autoSolveLinked && activeDesign) {
-        const { productions: solved } = autoSolveAfter(periodIdx, next, decisions);
+        const { productions: solved, decisions: solvedDec } = autoSolveAfter(periodIdx, next, decisions);
+        // 延迟更新 decisions 避免在 setProductions 回调中直接调用 setDecisions
+        setTimeout(() => setDecisions(solvedDec), 0);
         return solved;
       }
       return next;
@@ -360,20 +406,16 @@ export function ProductionSimulator() {
 
   /** 灵活调整模式下手动修改雇佣人数 */
   const handleUpdateHired = (periodIdx: number, hired: number) => {
-    setDecisions((prev) => {
-      const next = [...prev];
-      next[periodIdx] = { ...next[periodIdx], hired };
-      return next;
-    });
-    // 联动自动求解后续期
+    const updatedDecisions = [...decisions];
+    updatedDecisions[periodIdx] = { ...updatedDecisions[periodIdx], hired };
+    setDecisions(updatedDecisions);
+
+    // 联动自动求解后续期（同时更新 productions 和 decisions）
     if (autoSolveLinked && activeDesign) {
       setTimeout(() => {
-        setProductions((prev) => {
-          const newDecisions = [...decisions];
-          newDecisions[periodIdx] = { ...newDecisions[periodIdx], hired };
-          const { productions: solved } = autoSolveAfter(periodIdx, prev, newDecisions);
-          return solved;
-        });
+        const { productions: solved, decisions: solvedDec } = autoSolveAfter(periodIdx, productions, updatedDecisions);
+        setProductions(solved);
+        setDecisions(solvedDec);
       }, 0);
     }
   };

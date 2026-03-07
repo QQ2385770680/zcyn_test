@@ -57,7 +57,7 @@ export default function Login() {
             </div>
             <div>
               <h2 className="text-xl font-bold text-gray-900">无双 · iBizSim</h2>
-              <p className="text-sm text-gray-500">智能决策辅助系统</p>
+              <p className="text-sm text-gray-500">智能决策系统</p>
             </div>
           </div>
           <h1 className="text-3xl font-bold text-gray-900 leading-tight mb-4">

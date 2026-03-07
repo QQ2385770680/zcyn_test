@@ -38,7 +38,7 @@ export default function Home() {
             无双 · iBizSim 企业竞争模拟
           </Badge>
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
-            智能决策辅助系统
+            智能决策系统
             <span className="text-emerald-600 ml-2 text-lg font-normal align-middle">「测试版」</span>
           </h1>
           <p className="text-gray-500 text-sm sm:text-base leading-relaxed">

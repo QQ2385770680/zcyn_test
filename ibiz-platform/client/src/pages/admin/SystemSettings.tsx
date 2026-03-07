@@ -22,7 +22,7 @@ export default function SystemSettings() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">系统名称</label>
-              <Input defaultValue="iBizSim 智能决策辅助系统" />
+              <Input defaultValue="无双 · iBizSim智能决策系统" />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">最大模拟期数</label>

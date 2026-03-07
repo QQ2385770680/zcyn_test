@@ -1,25 +1,22 @@
 /**
- * solver.ts — iBizSim 分层贪心 + 迭代修正求解器
+ * solver.ts — iBizSim 分层贪心 + 迭代修正求解器（v2 重构）
  *
- * 方案 C：Layered Greedy with Iterative Refinement
+ * 新求解架构：逐期按 产量→机器→雇佣 顺序求解
  *
- * 三层求解架构：
- * ┌─────────────────────────────────────────────────────┐
- * │ 第一层：资源规划层（跨期）                           │
- * │  - 反向推导机器购买数量（P1→P3, P2→P4, P3→P5）     │
- * │  - 确定雇佣策略（custom 模式下求解最优雇佣人数）    │
- * ├─────────────────────────────────────────────────────┤
- * │ 第二层：产量分配层（期内）                           │
- * │  - 按约束顺序逐班次求解：                           │
- * │    shift1 → C5 接近 0（一班可用机器）               │
- * │    shift2 → C1 接近 0（一班可用人数）               │
- * │    ot1    → C7 接近 0（二班可用机器）               │
- * │    ot2    → C8 最小化（二加可用机器）               │
- * ├─────────────────────────────────────────────────────┤
- * │ 第三层：均衡修正层（全局）                           │
- * │  - P2 起：最小化 |A总-B总| 和 |C总-D总|            │
- * │  - 在不违反约束的前提下微调产量                     │
- * └─────────────────────────────────────────────────────┘
+ * 每期求解顺序：
+ * 1. 产量求解（第二层）：
+ *    - shift1 → 让 C5（一班可用机器）最小
+ *    - shift2 → 让 C1（一班可用人数）最小
+ *    - ot1    → 让 C7（二班可用机器）最小
+ *    - ot2    → 让 C8（二加可用机器）最小
+ *
+ * 2. 机器购买求解（range 模式）：
+ *    - 第N期购买 → 目标让第N+2期的一班可用人数和一班二班二加可用机器最小
+ *    - 通过在目标期执行完整最优排产后评估约束残差
+ *
+ * 3. 雇佣求解（range 模式）：
+ *    - 第N期雇佣 → 目标让第N+1期最优排产后一班可用人数和可用机器最小
+ *    - 通过在下一期执行完整最优排产后评估约束残差
  *
  * 约束公式（来自 engine.ts）：
  * C1: totalAvailableWorkers - laborShift1 - laborShift2  ≥ 0
@@ -88,8 +85,8 @@ export interface SolverResult {
   }>;
   /** 产品均衡指标 */
   balance: {
-    abDiff: number; // |A总-B总|
-    cdDiff: number; // |C总-D总|
+    abDiff: number;
+    cdDiff: number;
   };
 }
 
@@ -136,7 +133,7 @@ function getCellInfo(
     } else if (cellColor === "fixed") {
       mode = "fixed";
     } else {
-      mode = "optional"; // free → optional
+      mode = "optional";
     }
   }
 
@@ -163,17 +160,8 @@ function getShiftCells(
 /**
  * 均匀分配产量（Round-Robin 轮询式）
  *
- * 核心改进：不再按 A→B→C→D 贪心填满，而是每次给每个产品各加 1，
- * 直到资源耗尽或所有产品达到上限。这样保证产品间产量尽量均匀。
- *
- * @param cells 待分配的单元格列表
- * @param primaryCap 主约束容量
- * @param primaryCoeffKey 主约束系数
- * @param primaryMul 主约束乘数（加班=2，正班=1）
- * @param secondaryCap 次约束容量（可选）
- * @param secondaryCoeffKey 次约束系数
- * @param secondaryMul 次约束乘数
- * @returns 分配结果 { [product]: qty }
+ * 核心：每次给每个产品各加 1，直到资源耗尽或所有产品达到上限。
+ * 保证产品间产量尽量均匀。
  */
 function allocateRoundRobin(
   cells: CellInfo[],
@@ -210,20 +198,18 @@ function allocateRoundRobin(
   if (adjustable.length === 0) return result;
 
   // 第二遍：轮询式均匀分配
-  // 按系数从小到大排序（系数小的产品单位资源消耗少，优先分配可以产出更多）
-  // 但为了均衡，我们用轮询而非贪心
   let changed = true;
   while (changed && remPrimary > 0.001 && remSecondary > 0.001) {
     changed = false;
     for (const cell of adjustable) {
       const current = result[cell.product];
-      if (current >= cell.rangeMax) continue; // 已达上限
+      if (current >= cell.rangeMax) continue;
 
       const pCost = cell[primaryCoeffKey] * primaryMul;
       const sCost = secondaryCoeffKey ? cell[secondaryCoeffKey] * (secondaryMul ?? 1) : 0;
 
-      if (pCost > remPrimary + 0.001) continue; // 主约束不够
-      if (sCost > 0 && sCost > remSecondary + 0.001) continue; // 次约束不够
+      if (pCost > remPrimary + 0.001) continue;
+      if (sCost > 0 && sCost > remSecondary + 0.001) continue;
 
       result[cell.product] = current + 1;
       remPrimary -= pCost;
@@ -236,11 +222,119 @@ function allocateRoundRobin(
 }
 
 // ============================================================
-// 第一层：资源规划层
+// 产量求解（第二层）
 // ============================================================
 
 /**
- * 求解雇佣决策
+ * 单期产量求解
+ *
+ * 严格按求解顺序：
+ * 1. shift1 → 让 C5（一班可用机器）最小
+ * 2. shift2 → 让 C1（一班可用人数）最小
+ * 3. ot1    → 让 C7（二班可用机器）最小
+ * 4. ot2    → 让 C8（二加可用机器）最小
+ */
+function solvePeriodProduction(
+  resources: PeriodResources,
+  config: GlobalConfig,
+  period: number,
+  designConfig?: DesignPlanConfig | null,
+): PeriodProduction {
+  const production = emptyPeriodProduction();
+  const products = config.products;
+
+  // ---- Step 1: shift1（第一班）→ 让 C5（一班可用机器）最小 ----
+  {
+    const cells = getShiftCells("shift1", period, config, designConfig);
+    const allocated = allocateRoundRobin(
+      cells,
+      resources.machines,
+      "machineCoeff",
+      1,
+      resources.totalAvailableWorkers,
+      "laborCoeff",
+      1,
+    );
+    for (const p of PRODUCTS) {
+      production.shift1[p] = allocated[p];
+    }
+  }
+
+  // 计算 shift1 实际消耗
+  const shift1Labor = PRODUCTS.reduce(
+    (s, p) => s + production.shift1[p] * getLaborCoeff(products[PRODUCT_INDEX[p]]), 0
+  );
+
+  // ---- Step 2: shift2（第二班）→ 让 C1（一班可用人数）最小 ----
+  {
+    const remainingLabor = resources.totalAvailableWorkers - shift1Labor;
+    const cells = getShiftCells("shift2", period, config, designConfig);
+    const allocated = allocateRoundRobin(
+      cells,
+      remainingLabor,
+      "laborCoeff",
+      1,
+      resources.machines,
+      "machineCoeff",
+      1,
+    );
+    for (const p of PRODUCTS) {
+      production.shift2[p] = allocated[p];
+    }
+  }
+
+  // 计算 shift2 实际消耗
+  const shift2Labor = PRODUCTS.reduce(
+    (s, p) => s + production.shift2[p] * getLaborCoeff(products[PRODUCT_INDEX[p]]), 0
+  );
+  const shift2Machine = PRODUCTS.reduce(
+    (s, p) => s + production.shift2[p] * getMachineCoeff(products[PRODUCT_INDEX[p]]), 0
+  );
+
+  // ---- Step 3: ot1（一加）→ 让 C7（二班可用机器）最小 ----
+  {
+    const remainingMachineForOt1 = resources.machines - shift2Machine;
+    const cells = getShiftCells("ot1", period, config, designConfig);
+    const allocated = allocateRoundRobin(
+      cells,
+      remainingMachineForOt1,
+      "machineCoeff",
+      2,
+      shift1Labor,
+      "laborCoeff",
+      2,
+    );
+    for (const p of PRODUCTS) {
+      production.ot1[p] = allocated[p];
+    }
+  }
+
+  // ---- Step 4: ot2（二加）→ 让 C8（二加可用机器）最小 ----
+  {
+    const cells = getShiftCells("ot2", period, config, designConfig);
+    const allocated = allocateRoundRobin(
+      cells,
+      resources.machines,
+      "machineCoeff",
+      2,
+      shift2Labor,
+      "laborCoeff",
+      2,
+    );
+    for (const p of PRODUCTS) {
+      production.ot2[p] = allocated[p];
+    }
+  }
+
+  return production;
+}
+
+// ============================================================
+// 资源决策求解
+// ============================================================
+
+/**
+ * 求解雇佣决策（非 range 模式）
  */
 function solveHiringDecision(
   period: number,
@@ -250,12 +344,9 @@ function solveHiringDecision(
 ): { hired: number; fired: number } {
   const minFire = Math.ceil(initialWorkers * (config.minFireRate / 100));
   const maxHire = Math.floor(initialWorkers * (config.maxHireRate / 100));
-
-  // 解雇固定为最低解雇
   const fired = minFire;
 
   if (!hiringConfig) {
-    // 默认：最大雇佣
     return { hired: maxHire, fired };
   }
 
@@ -263,29 +354,24 @@ function solveHiringDecision(
     case "max-hire":
       return { hired: maxHire, fired };
     case "balance":
-      return { hired: minFire, fired }; // 雇佣=解雇=最低解雇
+      return { hired: minFire, fired };
     case "flexible":
-      return { hired: 0, fired }; // 模拟器中手动输入，求解器默认0
+      return { hired: 0, fired };
     case "range": {
+      // range 模式在后续精确求解，这里先用中间值
       const hiredMin = Math.max(0, hiringConfig.hiredRangeMin);
       const hiredMax = Math.min(maxHire, hiringConfig.hiredRangeMax);
-      return {
-        hired: Math.min(maxHire, Math.max(0, Math.round((hiredMin + hiredMax) / 2))),
-        fired,
-      };
+      return { hired: Math.round((hiredMin + hiredMax) / 2), fired };
     }
     case "fixed":
-      return {
-        hired: Math.min(maxHire, Math.max(0, hiringConfig.fixedHired)),
-        fired,
-      };
+      return { hired: Math.min(maxHire, Math.max(0, hiringConfig.fixedHired)), fired };
     default:
       return { hired: maxHire, fired };
   }
 }
 
 /**
- * 求解机器购买数量
+ * 求解机器购买数量（非 range 模式）
  */
 function solveMachinePurchase(
   machineConfig?: PeriodMachineConfig,
@@ -295,6 +381,7 @@ function solveMachinePurchase(
     case "none": return 0;
     case "fixed": return machineConfig.fixedCount;
     case "range":
+      // range 模式在后续精确求解，这里先用中间值
       return Math.round((machineConfig.rangeMin + machineConfig.rangeMax) / 2);
     default: return 0;
   }
@@ -317,10 +404,52 @@ function calcChainedResources(
 }
 
 /**
- * 搜索最优机器购买数量
+ * 评估资源利用率得分
  *
- * 目标：让目标期（购买期+2）的一班可用人数和一班二班二加可用机器数最小化
- * 即资源利用率最大化，人力和机器刚好匹配
+ * 在目标期执行完整最优排产，然后计算所有约束残差之和。
+ * 残差越小 = 资源利用率越高 = 得分越高
+ *
+ * 得分 = -(C1 + C5 + C7 + C8)
+ * C1: 一班可用人数剩余
+ * C5: 一班可用机器剩余
+ * C7: 二班可用机器剩余
+ * C8: 二加可用机器剩余
+ */
+function evaluateResourceScore(
+  targetPeriodIdx: number,
+  config: GlobalConfig,
+  decisions: PeriodDecision[],
+  designConfig?: DesignPlanConfig | null,
+): number {
+  const resources = calcChainedResources(targetPeriodIdx, config, decisions);
+  const period = targetPeriodIdx + 1;
+
+  // 在目标期执行完整最优排产
+  const production = solvePeriodProduction(resources, config, period, designConfig);
+
+  // 计算约束残差
+  const cs = calcConstraints(production, resources, config.products);
+
+  // 所有约束残差之和（越小越好）
+  // 如果有约束超限（<0），给予巨大惩罚
+  const c1 = cs.c1_workersAfterShift1;
+  const c5 = cs.c5_machinesAfterShift1;
+  const c7 = cs.c7_machinesAfterShift2;
+  const c8 = cs.c8_machinesAfterOt2;
+
+  if (c1 < -0.001 || c5 < -0.001 || c7 < -0.001 || c8 < -0.001) {
+    return -100000; // 约束超限，严重惩罚
+  }
+
+  // 得分 = -(残差总和)，残差越小得分越高
+  return -(c1 + c5 + c7 + c8);
+}
+
+/**
+ * 搜索最优机器购买数量（range 模式）
+ *
+ * 目标：让目标期（购买期+2）执行完整最优排产后，
+ * 一班可用人数（C1）和一班二班二加可用机器（C5/C7/C8）最小化
  */
 function searchOptimalMachinePurchase(
   purchasePeriodIdx: number,
@@ -328,33 +457,23 @@ function searchOptimalMachinePurchase(
   config: GlobalConfig,
   decisions: PeriodDecision[],
   machineConfig: PeriodMachineConfig,
+  designConfig?: DesignPlanConfig | null,
 ): number {
   const { rangeMin, rangeMax } = machineConfig;
+
+  if (targetPeriodIdx >= config.periods) {
+    // 目标期超出范围，用中间值
+    return Math.round((rangeMin + rangeMax) / 2);
+  }
+
   let bestPurchase = rangeMin;
   let bestScore = -Infinity;
 
+  const origPurchase = decisions[purchasePeriodIdx].machinesPurchased;
+
   for (let p = rangeMin; p <= rangeMax; p++) {
-    const origPurchase = decisions[purchasePeriodIdx].machinesPurchased;
     decisions[purchasePeriodIdx].machinesPurchased = p;
-    const resources = calcChainedResources(targetPeriodIdx, config, decisions);
-    decisions[purchasePeriodIdx].machinesPurchased = origPurchase;
-
-    const machines = resources.machines;
-    const workers = resources.totalAvailableWorkers;
-
-    const avgMachineCoeff = config.products.reduce((s, pr) => s + getMachineCoeff(pr), 0) / 4;
-    const avgLaborCoeff = config.products.reduce((s, pr) => s + getLaborCoeff(pr), 0) / 4;
-
-    // 机器能支撑的最大人力需求
-    const machineCapInLabor = avgMachineCoeff > 0 ? (machines / avgMachineCoeff) * avgLaborCoeff : 999;
-    // 人力能支撑的最大机器需求
-    const laborCapInMachine = avgLaborCoeff > 0 ? (workers / avgLaborCoeff) * avgMachineCoeff : 999;
-
-    // 资源剩余最小化：人力剩余 + 机器剩余 越小越好
-    const workerSurplus = Math.max(0, workers - machineCapInLabor);
-    const machineSurplus = Math.max(0, machines - laborCapInMachine);
-    // 总分 = -(剩余总量)，越大越好
-    const score = -(workerSurplus + machineSurplus * 10);
+    const score = evaluateResourceScore(targetPeriodIdx, config, decisions, designConfig);
 
     if (score > bestScore) {
       bestScore = score;
@@ -362,439 +481,84 @@ function searchOptimalMachinePurchase(
     }
   }
 
+  // 恢复原值
+  decisions[purchasePeriodIdx].machinesPurchased = origPurchase;
   return bestPurchase;
 }
 
 /**
  * 搜索最优雇佣人数（range 模式）
  *
- * 目标：让下一期的一班可用人数（C1）和一班二班二加可用机器数（C5/C7/C8）最小化
- * 即让下一期资源利用率最大化
+ * 目标：让下一期执行完整最优排产后，
+ * 一班可用人数（C1）和一班二班二加可用机器（C5/C7/C8）最小化
  */
 function searchOptimalHiring(
   periodIdx: number,
   config: GlobalConfig,
   decisions: PeriodDecision[],
   hiringConfig: PeriodHiringConfig,
+  designConfig?: DesignPlanConfig | null,
 ): { hired: number; fired: number } {
-  // 计算当前期的实际期初工人数（基于前面期的已更新决策）
+  // 计算当前期的实际期初工人数
   let currentWorkers = config.initialWorkers;
   for (let j = 0; j < periodIdx; j++) {
     currentWorkers = currentWorkers + decisions[j].hired - decisions[j].fired;
   }
   const minFire = Math.ceil(currentWorkers * (config.minFireRate / 100));
   const maxHire = Math.floor(currentWorkers * (config.maxHireRate / 100));
+  const fired = minFire;
 
-  // 解雇固定为最低解雇
   const hiredMin = Math.max(0, hiringConfig.hiredRangeMin);
   const hiredMax = Math.min(maxHire, hiringConfig.hiredRangeMax);
 
-  const fired = minFire;
+  const nextPeriodIdx = periodIdx + 1;
+  if (nextPeriodIdx >= config.periods) {
+    // 没有下一期，用中间值
+    return { hired: Math.round((hiredMin + hiredMax) / 2), fired };
+  }
+
   let bestHired = hiredMin;
   let bestScore = -Infinity;
 
+  const origHired = decisions[periodIdx].hired;
+  const origFired = decisions[periodIdx].fired;
+
   for (let h = hiredMin; h <= hiredMax; h++) {
-    const origHired = decisions[periodIdx].hired;
-    const origFired = decisions[periodIdx].fired;
     decisions[periodIdx].hired = h;
     decisions[periodIdx].fired = fired;
 
-    const nextPeriodIdx = periodIdx + 1;
-    if (nextPeriodIdx < config.periods) {
-      const nextResources = calcChainedResources(nextPeriodIdx, config, decisions);
-      const workers = nextResources.totalAvailableWorkers;
-      const machines = nextResources.machines;
+    const score = evaluateResourceScore(nextPeriodIdx, config, decisions, designConfig);
 
-      // 目标：让下一期的可用人数和可用机器都尽量小（即刚好够用）
-      // 计算下一期的最大产能（用于评估资源是否匹配）
-      const avgMachineCoeff = config.products.reduce((s, pr) => s + getMachineCoeff(pr), 0) / 4;
-      const avgLaborCoeff = config.products.reduce((s, pr) => s + getLaborCoeff(pr), 0) / 4;
-
-      // 机器能支撑的最大人力需求
-      const machineCapInLabor = avgMachineCoeff > 0 ? (machines / avgMachineCoeff) * avgLaborCoeff : 999;
-      // 人力能支撑的最大机器需求
-      const laborCapInMachine = avgLaborCoeff > 0 ? (workers / avgLaborCoeff) * avgMachineCoeff : 999;
-
-      // 资源剩余最小化：人力剩余 + 机器剩余 越小越好
-      const workerSurplus = Math.max(0, workers - machineCapInLabor);
-      const machineSurplus = Math.max(0, machines - laborCapInMachine);
-      // 总分 = -(剩余总量)，越大越好（剩余越小越好）
-      const score = -(workerSurplus + machineSurplus * 10);
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestHired = h;
-      }
+    if (score > bestScore) {
+      bestScore = score;
+      bestHired = h;
     }
-
-    decisions[periodIdx].hired = origHired;
-    decisions[periodIdx].fired = origFired;
   }
 
-  return { hired: bestHired, fired: fired };
-}
+  // 恢复原值
+  decisions[periodIdx].hired = origHired;
+  decisions[periodIdx].fired = origFired;
 
-/**
- * 第一层主函数：计算所有期的资源决策
- */
-function solveResourcePlan(
-  config: GlobalConfig,
-  designConfig?: DesignPlanConfig | null,
-): PeriodDecision[] {
-  const decisions: PeriodDecision[] = [];
-  let currentInitialWorkers = config.initialWorkers;
-
-  // 第一遍：生成初始决策
-  for (let i = 0; i < config.periods; i++) {
-    const period = i + 1;
-    const hiringConfig = designConfig?.periodHiring[i];
-    const machineConfig = designConfig?.periodMachines[i];
-
-    const { hired, fired } = solveHiringDecision(
-      period, currentInitialWorkers, config, hiringConfig
-    );
-    const machinesPurchased = solveMachinePurchase(machineConfig);
-
-    decisions.push({ machinesPurchased, hired, fired });
-    currentInitialWorkers = currentInitialWorkers + hired - fired;
-  }
-
-  // 第二遍：反向推导 range 模式的机器购买
-  for (let i = 0; i < config.periods; i++) {
-    const machineConfig = designConfig?.periodMachines[i];
-    if (!machineConfig || machineConfig.mode !== "range") continue;
-
-    const targetPeriodIdx = i + 2;
-    if (targetPeriodIdx >= config.periods) continue;
-
-    const bestPurchase = searchOptimalMachinePurchase(
-      i, targetPeriodIdx, config, decisions, machineConfig
-    );
-    decisions[i].machinesPurchased = bestPurchase;
-  }
-
-  // 第三遍：对 range 模式的雇佣，搜索最优人数
-  // 需要按顺序处理，因为前一期的雇佣决策会影响后一期的工人数
-  for (let i = 0; i < config.periods; i++) {
-    const hiringConfig = designConfig?.periodHiring[i];
-    if (!hiringConfig || hiringConfig.mode !== "range") continue;
-
-    // 重新计算当前期的实际 initialWorkers（基于前面期的已更新决策）
-    let currentWorkers = config.initialWorkers;
-    for (let j = 0; j < i; j++) {
-      currentWorkers = currentWorkers + decisions[j].hired - decisions[j].fired;
-    }
-    // 修正当前期的 minFire 和 maxHire 基于实际工人数
-    const minFire = Math.ceil(currentWorkers * (config.minFireRate / 100));
-    const maxHire = Math.floor(currentWorkers * (config.maxHireRate / 100));
-    decisions[i].fired = minFire;
-
-    const bestHiring = searchOptimalHiring(i, config, decisions, hiringConfig);
-    decisions[i].hired = bestHiring.hired;
-    decisions[i].fired = bestHiring.fired;
-  }
-
-  return decisions;
+  return { hired: bestHired, fired };
 }
 
 // ============================================================
-// 第二层：产量分配层
+// 核心求解流程（v2：逐期 产量→机器→雇佣）
 // ============================================================
 
 /**
- * 单期产量求解
+ * 全局最优求解（v2 重构）
  *
- * 严格按用户指定的求解顺序：
+ * 逐期按以下顺序求解：
+ * 1. 先用初始决策计算本期资源
+ * 2. 求解本期产量最佳值
+ * 3. 求解本期机器购买最佳值（range 模式，目标期=本期+2）
+ * 4. 求解本期雇佣最佳值（range 模式，目标期=本期+1）
  *
- * 1. shift1（第一班）→ 让 C5（一班可用机器）最小
- *    C5 = machines - machineShift1
- *    主约束：machines（机器容量，shift1 独享）
- *    次约束：totalAvailableWorkers（人力上限，shift1+shift2 共享）
- *
- * 2. shift2（第二班）→ 让 C1（一班可用人数）最小
- *    C1 = totalAvailableWorkers - laborShift1 - laborShift2
- *    主约束：remainingLabor（剩余人力）
- *    次约束：machines（机器容量，shift2 独享时段）
- *
- * 3. ot1（一加）→ 让 C7（二班可用机器）最小
- *    C7 = machines - machineShift2 - machineOt1 × 2
- *    主约束：machines - shift2Machine（剩余机器容量，乘数2）
- *    次约束：shift1Labor（C2 人力约束：laborShift1 - laborOt1×2 ≥ 0）
- *
- * 4. ot2（二加）→ 让 C8（二加可用机器）最小
- *    C8 = machines - machineOt2 × 2
- *    主约束：machines（机器容量，乘数2）
- *    次约束：shift2Labor（C4 人力约束：laborShift2 - laborOt2×2 ≥ 0）
- *
- * 每步目标：在不违反任何约束的前提下，尽量把对应资源用完（约束值最小）
- */
-function solvePeriodProduction(
-  resources: PeriodResources,
-  config: GlobalConfig,
-  period: number,
-  designConfig?: DesignPlanConfig | null,
-): PeriodProduction {
-  const production = emptyPeriodProduction();
-  const products = config.products;
-
-  // ---- Step 1: shift1（第一班）→ 让 C5（一班可用机器）最小 ----
-  // C5 = machines - machineShift1
-  // shift1 独享机器池，尽量把机器用完
-  // 同时受人力总量约束（shift1+shift2 共享人力池）
-  {
-    const cells = getShiftCells("shift1", period, config, designConfig);
-    const allocated = allocateRoundRobin(
-      cells,
-      resources.machines,                // 主约束：机器容量（让 C5 最小）
-      "machineCoeff",
-      1,
-      resources.totalAvailableWorkers,   // 次约束：总人力上限
-      "laborCoeff",
-      1,
-    );
-    for (const p of PRODUCTS) {
-      production.shift1[p] = allocated[p];
-    }
-  }
-
-  // 计算 shift1 实际消耗
-  const shift1Labor = PRODUCTS.reduce(
-    (s, p) => s + production.shift1[p] * getLaborCoeff(products[PRODUCT_INDEX[p]]), 0
-  );
-
-  // ---- Step 2: shift2（第二班）→ 让 C1（一班可用人数）最小 ----
-  // C1 = totalAvailableWorkers - laborShift1 - laborShift2
-  // shift2 的目标是把剩余人力用完
-  // 同时受机器容量约束（shift2 独享时段的机器）
-  {
-    const remainingLabor = resources.totalAvailableWorkers - shift1Labor;
-    const cells = getShiftCells("shift2", period, config, designConfig);
-    const allocated = allocateRoundRobin(
-      cells,
-      remainingLabor,                    // 主约束：剩余人力（让 C1 最小）
-      "laborCoeff",
-      1,
-      resources.machines,                // 次约束：机器容量
-      "machineCoeff",
-      1,
-    );
-    for (const p of PRODUCTS) {
-      production.shift2[p] = allocated[p];
-    }
-  }
-
-  // 计算 shift2 实际消耗
-  const shift2Labor = PRODUCTS.reduce(
-    (s, p) => s + production.shift2[p] * getLaborCoeff(products[PRODUCT_INDEX[p]]), 0
-  );
-  const shift2Machine = PRODUCTS.reduce(
-    (s, p) => s + production.shift2[p] * getMachineCoeff(products[PRODUCT_INDEX[p]]), 0
-  );
-
-  // ---- Step 3: ot1（一加）→ 让 C7（二班可用机器）最小 ----
-  // C7 = machines - machineShift2 - machineOt1 × 2
-  // ot1 和 shift2 共享机器池，ot1 的机器消耗翻倍
-  // 同时受 C2 人力约束：laborShift1 - laborOt1×2 ≥ 0
-  {
-    const remainingMachineForOt1 = resources.machines - shift2Machine;
-    const cells = getShiftCells("ot1", period, config, designConfig);
-    const allocated = allocateRoundRobin(
-      cells,
-      remainingMachineForOt1,            // 主约束：剩余机器容量（让 C7 最小）
-      "machineCoeff",
-      2,                                 // 加班机器乘数 = 2
-      shift1Labor,                       // 次约束：C2 人力上限
-      "laborCoeff",
-      2,                                 // 加班人力乘数 = 2
-    );
-    for (const p of PRODUCTS) {
-      production.ot1[p] = allocated[p];
-    }
-  }
-
-  // ---- Step 4: ot2（二加）→ 让 C8（二加可用机器）最小 ----
-  // C8 = machines - machineOt2 × 2
-  // ot2 独享机器池，机器消耗翻倍
-  // 同时受 C4 人力约束：laborShift2 - laborOt2×2 ≥ 0
-  {
-    const cells = getShiftCells("ot2", period, config, designConfig);
-    const allocated = allocateRoundRobin(
-      cells,
-      resources.machines,                // 主约束：机器容量（让 C8 最小）
-      "machineCoeff",
-      2,                                 // 加班机器乘数 = 2
-      shift2Labor,                       // 次约束：C4 人力上限
-      "laborCoeff",
-      2,                                 // 加班人力乘数 = 2
-    );
-    for (const p of PRODUCTS) {
-      production.ot2[p] = allocated[p];
-    }
-  }
-
-  return production;
-}
-
-// ============================================================
-// 第三层：均衡修正层
-// ============================================================
-
-/**
- * 计算各产品的全局总产量
- */
-function calcGlobalTotals(
-  productions: PeriodProduction[],
-  startPeriod: number = 0,
-): Record<ProductKey, number> {
-  const totals: Record<ProductKey, number> = { A: 0, B: 0, C: 0, D: 0 };
-  for (let i = startPeriod; i < productions.length; i++) {
-    const prod = productions[i];
-    for (const p of PRODUCTS) {
-      totals[p] += prod.shift1[p] + prod.ot1[p] + prod.shift2[p] + prod.ot2[p];
-    }
-  }
-  return totals;
-}
-
-/**
- * 尝试在不违反约束的前提下，微调某期某班次某产品的产量
- */
-function tryAdjust(
-  productions: PeriodProduction[],
-  periodIdx: number,
-  shift: ShiftKey,
-  product: ProductKey,
-  delta: number,
-  config: GlobalConfig,
-  resources: PeriodResources,
-  designConfig?: DesignPlanConfig | null,
-): boolean {
-  const period = periodIdx + 1;
-  const cellInfo = getCellInfo(product, shift, period, config, designConfig);
-
-  if (cellInfo.mode === "fixed" || cellInfo.mode === "blank") return false;
-
-  const currentQty = productions[periodIdx][shift][product];
-  const newQty = currentQty + delta;
-
-  if (newQty < cellInfo.rangeMin || newQty > cellInfo.rangeMax) return false;
-  if (newQty < 0) return false;
-
-  productions[periodIdx][shift][product] = newQty;
-
-  const constraints = calcConstraints(productions[periodIdx], resources, config.products);
-  const valid =
-    constraints.c1_workersAfterShift1 >= -0.001 &&
-    constraints.c2_workersAfterOt1 >= -0.001 &&
-    constraints.c4_workersAfterOt2 >= -0.001 &&
-    constraints.c5_machinesAfterShift1 >= -0.001 &&
-    constraints.c7_machinesAfterShift2 >= -0.001 &&
-    constraints.c8_machinesAfterOt2 >= -0.001;
-
-  if (!valid) {
-    productions[periodIdx][shift][product] = currentQty;
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * 均衡修正：最小化 |A-B| 和 |C-D|
- *
- * 策略改进：同时尝试 增加少的 + 减少多的（swap），
- * 并在所有期和所有班次中寻找最佳调整位置。
- */
-function balanceProducts(
-  productions: PeriodProduction[],
-  config: GlobalConfig,
-  decisions: PeriodDecision[],
-  designConfig?: DesignPlanConfig | null,
-  maxIter: number = 200,
-): void {
-  const shifts: ShiftKey[] = ["shift1", "shift2", "ot1", "ot2"];
-
-  // 预计算各期资源
-  const allResources: PeriodResources[] = [];
-  for (let i = 0; i < config.periods; i++) {
-    allResources.push(calcChainedResources(i, config, decisions));
-  }
-
-  for (let iter = 0; iter < maxIter; iter++) {
-    const totals = calcGlobalTotals(productions, 0); // 从 P1 开始统计
-    const abDiff = totals.A - totals.B;
-    const cdDiff = totals.C - totals.D;
-
-    if (Math.abs(abDiff) <= 1 && Math.abs(cdDiff) <= 1) break;
-
-    let adjusted = false;
-
-    // 尝试调整 A/B 均衡
-    if (Math.abs(abDiff) > 1) {
-      const more: ProductKey = abDiff > 0 ? "A" : "B";
-      const less: ProductKey = abDiff > 0 ? "B" : "A";
-
-      for (let i = 0; i < config.periods && !adjusted; i++) {
-        for (const shift of shifts) {
-          // 策略1：增加较少的产品
-          if (tryAdjust(productions, i, shift, less, 1, config, allResources[i], designConfig)) {
-            adjusted = true;
-            break;
-          }
-          // 策略2：减少较多的产品
-          if (tryAdjust(productions, i, shift, more, -1, config, allResources[i], designConfig)) {
-            adjusted = true;
-            break;
-          }
-          // 策略3：swap（减少多的 + 增加少的）
-          if (tryAdjust(productions, i, shift, more, -1, config, allResources[i], designConfig)) {
-            if (tryAdjust(productions, i, shift, less, 1, config, allResources[i], designConfig)) {
-              adjusted = true;
-              break;
-            }
-            // 回滚减少
-            tryAdjust(productions, i, shift, more, 1, config, allResources[i], designConfig);
-          }
-        }
-      }
-    }
-
-    // 尝试调整 C/D 均衡
-    if (!adjusted && Math.abs(cdDiff) > 1) {
-      const more: ProductKey = cdDiff > 0 ? "C" : "D";
-      const less: ProductKey = cdDiff > 0 ? "D" : "C";
-
-      for (let i = 0; i < config.periods && !adjusted; i++) {
-        for (const shift of shifts) {
-          if (tryAdjust(productions, i, shift, less, 1, config, allResources[i], designConfig)) {
-            adjusted = true;
-            break;
-          }
-          if (tryAdjust(productions, i, shift, more, -1, config, allResources[i], designConfig)) {
-            adjusted = true;
-            break;
-          }
-          if (tryAdjust(productions, i, shift, more, -1, config, allResources[i], designConfig)) {
-            if (tryAdjust(productions, i, shift, less, 1, config, allResources[i], designConfig)) {
-              adjusted = true;
-              break;
-            }
-            tryAdjust(productions, i, shift, more, 1, config, allResources[i], designConfig);
-          }
-        }
-      }
-    }
-
-    if (!adjusted) break;
-  }
-}
-
-// ============================================================
-// 公开 API
-// ============================================================
-
-/**
- * 全局最优求解（三层联动）
+ * 由于机器购买和雇佣的 range 求解依赖后续期的最优排产评估，
+ * 需要两轮迭代：
+ * - 第一轮：生成初始决策 + 产量
+ * - 第二轮：精确求解 range 模式的机器和雇佣，并重算产量
  */
 export function solveOptimal(
   config: GlobalConfig,
@@ -802,22 +566,97 @@ export function solveOptimal(
 ): SolverResult {
   const startTime = performance.now();
 
-  // ---- 第一层：资源规划 ----
-  const decisions = solveResourcePlan(config, designConfig);
-
-  // ---- 第二层：产量分配 ----
+  // ================================================================
+  // 第一轮：生成初始决策和产量
+  // ================================================================
+  const decisions: PeriodDecision[] = [];
   const productions: PeriodProduction[] = [];
+  let currentInitialWorkers = config.initialWorkers;
+
   for (let i = 0; i < config.periods; i++) {
     const period = i + 1;
+    const hiringConfig = designConfig?.periodHiring[i];
+    const machineConfig = designConfig?.periodMachines[i];
+
+    // 生成初始决策
+    const { hired, fired } = solveHiringDecision(
+      period, currentInitialWorkers, config, hiringConfig
+    );
+    const machinesPurchased = solveMachinePurchase(machineConfig);
+    decisions.push({ machinesPurchased, hired, fired });
+
+    // 计算本期资源
     const resources = calcChainedResources(i, config, decisions);
+
+    // 求解本期产量
     const production = solvePeriodProduction(resources, config, period, designConfig);
     productions.push(production);
+
+    currentInitialWorkers = currentInitialWorkers + hired - fired;
   }
 
-  // ---- 第三层：均衡修正（已移除：AB差/CD差约束可能导致产量不合理） ----
-  // balanceProducts(productions, config, decisions, designConfig);
+  // ================================================================
+  // 第二轮：精确求解 range 模式的机器购买和雇佣
+  // 按期顺序：每期先求机器，再求雇佣
+  // ================================================================
+  for (let i = 0; i < config.periods; i++) {
+    const period = i + 1;
+    const machineConfig = designConfig?.periodMachines[i];
+    const hiringConfig = designConfig?.periodHiring[i];
+    let needRecalcProduction = false;
 
-  // ---- 计算结果指标 ----
+    // Step 1: 求解本期机器购买（range 模式）
+    if (machineConfig && machineConfig.mode === "range") {
+      const targetPeriodIdx = i + 2; // 机器两期后到货
+      const bestPurchase = searchOptimalMachinePurchase(
+        i, targetPeriodIdx, config, decisions, machineConfig, designConfig
+      );
+      if (decisions[i].machinesPurchased !== bestPurchase) {
+        decisions[i].machinesPurchased = bestPurchase;
+        needRecalcProduction = true;
+      }
+    }
+
+    // Step 2: 求解本期雇佣（range 模式）
+    if (hiringConfig && hiringConfig.mode === "range") {
+      // 先更新当前期的 fired
+      let cw = config.initialWorkers;
+      for (let j = 0; j < i; j++) {
+        cw = cw + decisions[j].hired - decisions[j].fired;
+      }
+      const minFire = Math.ceil(cw * (config.minFireRate / 100));
+      decisions[i].fired = minFire;
+
+      const bestHiring = searchOptimalHiring(
+        i, config, decisions, hiringConfig, designConfig
+      );
+      if (decisions[i].hired !== bestHiring.hired) {
+        decisions[i].hired = bestHiring.hired;
+        decisions[i].fired = bestHiring.fired;
+        needRecalcProduction = true;
+      }
+    }
+
+    // 如果决策变化了，重算本期及后续期的产量
+    if (needRecalcProduction) {
+      for (let j = i; j < config.periods; j++) {
+        const r = calcChainedResources(j, config, decisions);
+        productions[j] = solvePeriodProduction(r, config, j + 1, designConfig);
+      }
+    }
+  }
+
+  // ================================================================
+  // 第三轮：最终重算所有期的产量（确保一致性）
+  // ================================================================
+  for (let i = 0; i < config.periods; i++) {
+    const resources = calcChainedResources(i, config, decisions);
+    productions[i] = solvePeriodProduction(resources, config, i + 1, designConfig);
+  }
+
+  // ================================================================
+  // 计算结果指标
+  // ================================================================
   const residuals = [];
   for (let i = 0; i < config.periods; i++) {
     const resources = calcChainedResources(i, config, decisions);
@@ -844,8 +683,33 @@ export function solveOptimal(
   return { productions, decisions, elapsed, residuals, balance };
 }
 
+// ============================================================
+// 辅助函数
+// ============================================================
+
 /**
- * 单期最优求解（仅第二层）
+ * 计算各产品的全局总产量
+ */
+function calcGlobalTotals(
+  productions: PeriodProduction[],
+  startPeriod: number = 0,
+): Record<ProductKey, number> {
+  const totals: Record<ProductKey, number> = { A: 0, B: 0, C: 0, D: 0 };
+  for (let i = startPeriod; i < productions.length; i++) {
+    const prod = productions[i];
+    for (const p of PRODUCTS) {
+      totals[p] += prod.shift1[p] + prod.ot1[p] + prod.shift2[p] + prod.ot2[p];
+    }
+  }
+  return totals;
+}
+
+// ============================================================
+// 公开 API
+// ============================================================
+
+/**
+ * 单期最优求解（仅产量层）
  */
 export function solveSinglePeriod(
   resources: PeriodResources,
@@ -857,11 +721,28 @@ export function solveSinglePeriod(
 }
 
 /**
- * 仅求解资源决策（第一层）
+ * 仅求解资源决策（初始决策，不含 range 精确求解）
  */
 export function solveResourceDecisions(
   config: GlobalConfig,
   designConfig?: DesignPlanConfig | null,
 ): PeriodDecision[] {
-  return solveResourcePlan(config, designConfig);
+  const decisions: PeriodDecision[] = [];
+  let currentInitialWorkers = config.initialWorkers;
+
+  for (let i = 0; i < config.periods; i++) {
+    const period = i + 1;
+    const hiringConfig = designConfig?.periodHiring[i];
+    const machineConfig = designConfig?.periodMachines[i];
+
+    const { hired, fired } = solveHiringDecision(
+      period, currentInitialWorkers, config, hiringConfig
+    );
+    const machinesPurchased = solveMachinePurchase(machineConfig);
+
+    decisions.push({ machinesPurchased, hired, fired });
+    currentInitialWorkers = currentInitialWorkers + hired - fired;
+  }
+
+  return decisions;
 }

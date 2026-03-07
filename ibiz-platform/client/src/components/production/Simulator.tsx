@@ -58,7 +58,7 @@ import {
 } from "@/lib/engine";
 import { useDesignPlan, designToProductions, designToDecisions } from "@/lib/DesignPlanContext";
 import { loadDesignPlans, type DesignPlanConfig } from "@/lib/designerTypes";
-import { solveOptimal, solveSinglePeriod } from "@/lib/solver";
+import { solveOptimal, solveSinglePeriod, SOLVER_MODE_INFO, type SolverMode } from "@/lib/solver";
 import { recordPlanUsage } from "@/lib/planStorage";
 import { RefreshCw } from "lucide-react";
 
@@ -195,6 +195,9 @@ export function ProductionSimulator() {
 
   // 联动自动求解开关
   const [autoSolveLinked, setAutoSolveLinked] = React.useState(false);
+
+  // 求解算法模式
+  const [solverMode, setSolverMode] = React.useState<SolverMode>("ilp");
 
   // 恢复缓存的初始参数
   React.useEffect(() => {
@@ -337,11 +340,11 @@ export function ProductionSimulator() {
       const updatedResources = updatedResults[i]?.resources;
       if (!updatedResources) break;
 
-      const optimized = solveSinglePeriod(updatedResources, config, period, activeDesign);
+      const optimized = solveSinglePeriod(updatedResources, config, period, activeDesign, solverMode);
       newProductions[i] = optimized;
     }
     return { productions: newProductions, decisions: newDecisions };
-  }, [autoSolveLinked, activeDesign, config]);
+  }, [autoSolveLinked, activeDesign, config, solverMode]);
 
   const updateProduction = (
     periodIdx: number,
@@ -388,7 +391,7 @@ export function ProductionSimulator() {
   };
 
   const handleOptimizeAll = () => {
-    const result = solveOptimal(config, activeDesign);
+    const result = solveOptimal(config, activeDesign, solverMode);
     // 保留灵活调整模式下用户手动输入的雇佣人数
     const mergedDecisions = result.decisions.map((d, i) => {
       if (activeDesign?.periodHiring[i]?.mode === "flexible") {
@@ -398,7 +401,8 @@ export function ProductionSimulator() {
     });
     setProductions(result.productions);
     setDecisions(mergedDecisions);
-    showToast(`已完成全局最优排产（耗时 ${result.elapsed.toFixed(1)}ms，A-B差=${result.balance.abDiff}，C-D差=${result.balance.cdDiff}）`, "success");
+    const modeLabel = SOLVER_MODE_INFO[solverMode].label;
+    showToast(`[${modeLabel}] 全局排产完成（耗时 ${result.elapsed.toFixed(1)}ms，A-B差=${result.balance.abDiff}，C-D差=${result.balance.cdDiff}）`, "success");
   };
 
   const handleOptimizePeriod = (periodIdx: number) => {
@@ -408,13 +412,14 @@ export function ProductionSimulator() {
     const resources = tempResults[periodIdx]?.resources;
     if (!resources) return;
 
-    const optimized = solveSinglePeriod(resources, config, period, activeDesign);
+    const optimized = solveSinglePeriod(resources, config, period, activeDesign, solverMode);
     setProductions((prev) => {
       const next = [...prev];
       next[periodIdx] = optimized;
       return next;
     });
-    showToast(`第 ${period} 期已最优排产`, "success");
+    const modeLabel = SOLVER_MODE_INFO[solverMode].label;
+    showToast(`[${modeLabel}] 第 ${period} 期已排产`, "success");
   };
 
   const handleResetAll = () => {
@@ -493,6 +498,33 @@ export function ProductionSimulator() {
         )}
 
         <div className="flex-1" />
+
+        {/* 算法模式选择器 */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">算法:</span>
+          <div className="flex rounded-md border border-border overflow-hidden">
+            {(["greedy", "ilp", "annealing"] as SolverMode[]).map((mode) => {
+              const info = SOLVER_MODE_INFO[mode];
+              const isActive = solverMode === mode;
+              const icons: Record<SolverMode, string> = { greedy: "⚡", ilp: "🎯", annealing: "🔍" };
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setSolverMode(mode)}
+                  title={info.description}
+                  className={`px-2.5 py-1 text-xs font-medium transition-colors ${
+                    isActive
+                      ? "bg-emerald-600 text-white"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  } ${mode !== "greedy" ? "border-l border-border" : ""}`}
+                >
+                  <span className="mr-1">{icons[mode]}</span>
+                  {info.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <Button
           onClick={() => {

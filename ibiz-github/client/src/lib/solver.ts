@@ -377,9 +377,13 @@ function searchOptimalHiring(
   decisions: PeriodDecision[],
   hiringConfig: PeriodHiringConfig,
 ): { hired: number; fired: number } {
-  const resources = calcChainedResources(periodIdx, config, decisions);
-  const minFire = Math.ceil(resources.initialWorkers * (config.minFireRate / 100));
-  const maxHire = Math.floor(resources.initialWorkers * (config.maxHireRate / 100));
+  // 计算当前期的实际期初工人数（基于前面期的已更新决策）
+  let currentWorkers = config.initialWorkers;
+  for (let j = 0; j < periodIdx; j++) {
+    currentWorkers = currentWorkers + decisions[j].hired - decisions[j].fired;
+  }
+  const minFire = Math.ceil(currentWorkers * (config.minFireRate / 100));
+  const maxHire = Math.floor(currentWorkers * (config.maxHireRate / 100));
 
   // 解雇固定为最低解雇
   const hiredMin = Math.max(0, hiringConfig.hiredRangeMin);
@@ -470,9 +474,20 @@ function solveResourcePlan(
   }
 
   // 第三遍：对 range 模式的雇佣，搜索最优人数
+  // 需要按顺序处理，因为前一期的雇佣决策会影响后一期的工人数
   for (let i = 0; i < config.periods; i++) {
     const hiringConfig = designConfig?.periodHiring[i];
     if (!hiringConfig || hiringConfig.mode !== "range") continue;
+
+    // 重新计算当前期的实际 initialWorkers（基于前面期的已更新决策）
+    let currentWorkers = config.initialWorkers;
+    for (let j = 0; j < i; j++) {
+      currentWorkers = currentWorkers + decisions[j].hired - decisions[j].fired;
+    }
+    // 修正当前期的 minFire 和 maxHire 基于实际工人数
+    const minFire = Math.ceil(currentWorkers * (config.minFireRate / 100));
+    const maxHire = Math.floor(currentWorkers * (config.maxHireRate / 100));
+    decisions[i].fired = minFire;
 
     const bestHiring = searchOptimalHiring(i, config, decisions, hiringConfig);
     decisions[i].hired = bestHiring.hired;
@@ -799,8 +814,8 @@ export function solveOptimal(
     productions.push(production);
   }
 
-  // ---- 第三层：均衡修正 ----
-  balanceProducts(productions, config, decisions, designConfig);
+  // ---- 第三层：均衡修正（已移除：AB差/CD差约束可能导致产量不合理） ----
+  // balanceProducts(productions, config, decisions, designConfig);
 
   // ---- 计算结果指标 ----
   const residuals = [];

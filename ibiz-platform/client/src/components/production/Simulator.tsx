@@ -884,13 +884,26 @@ function PeriodAccordion({
               const cs = result.constraints;
               const vals = [cs.c1_workersAfterShift1, cs.c2_workersAfterOt1, cs.c4_workersAfterOt2, cs.c5_machinesAfterShift1, cs.c7_machinesAfterShift2, cs.c8_machinesAfterOt2];
               const hasFail = vals.some(v => v < -0.001);
-              const hasWarn = vals.some(v => v > 5);
-              const allPass = !hasFail && !hasWarn;
               if (totalOutput === 0) return null;
-              if (hasFail) return <span className="text-red-600 text-[10px] font-semibold">⊗超限</span>;
-              if (hasWarn) return <span className="text-amber-600 text-[10px] font-semibold">△偏大</span>;
-              if (allPass) return <span className="text-emerald-600 text-[10px] font-semibold">⊙达标</span>;
-              return null;
+              if (hasFail) {
+                // 显示具体哪个约束超限
+                const failNames: string[] = [];
+                if (cs.c1_workersAfterShift1 < -0.001) failNames.push("人力超限");
+                if (cs.c2_workersAfterOt1 < -0.001) failNames.push("一加人力超");
+                if (cs.c4_workersAfterOt2 < -0.001) failNames.push("二加人力超");
+                if (cs.c5_machinesAfterShift1 < -0.001) failNames.push("一班机器超");
+                if (cs.c7_machinesAfterShift2 < -0.001) failNames.push("二班机器超");
+                if (cs.c8_machinesAfterOt2 < -0.001) failNames.push("二加机器超");
+                return <span className="text-red-600 text-[10px] font-semibold" title={failNames.join("、")}>⊗{failNames[0]}</span>;
+              }
+              // 计算资源利用率提示
+              const workerUtil = r.totalAvailableWorkers > 0 ? Math.round((1 - cs.c1_workersAfterShift1 / r.totalAvailableWorkers) * 100) : 0;
+              const machineUtil = r.machines > 0 ? Math.round((1 - cs.c5_machinesAfterShift1 / r.machines) * 100) : 0;
+              const avgUtil = Math.round((workerUtil + machineUtil) / 2);
+              if (avgUtil >= 95) return <span className="text-emerald-600 text-[10px] font-semibold">⊙最优 {avgUtil}%</span>;
+              if (avgUtil >= 80) return <span className="text-emerald-500 text-[10px] font-semibold">⊙良好 {avgUtil}%</span>;
+              if (avgUtil >= 60) return <span className="text-amber-600 text-[10px] font-semibold">△可优化 {avgUtil}%</span>;
+              return <span className="text-amber-500 text-[10px] font-semibold">△待排产 {avgUtil}%</span>;
             })()}
           </span>
 

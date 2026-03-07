@@ -3,7 +3,7 @@
 ## 当前状态
 - **阶段**：阶段十完成（雇佣策略重构）
 - **Manus 项目名**：ibiz-sim
-- **最新 Manus 检查点**：`6d2cd829`
+- **最新 Manus 检查点**：`1dd01da7`
 - **技术栈**：React 19 + Tailwind 4 + shadcn/ui + wouter + Vite
 
 ## 恢复步骤

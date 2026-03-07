@@ -497,3 +497,20 @@
 
 ### Manus 检查点
 - 版本号：6d2cd829
+
+---
+
+## 环境恢复记录（2026-03-07）
+
+**完成时间**：2026-03-07
+**Manus Checkpoint**：`1dd01da7`
+
+从 GitHub 仓库 `QQ2385770680/zcyn_test/ibiz-platform` 克隆代码，恢复到 Manus 原生项目环境（`ibiz-sim`），激活持久化部署能力。代码三端（ibiz-platform / ibiz-github / ibiz-sim）已确认完全一致。
+
+### 三端同步状态
+
+| 目录 | 用途 | 状态 |
+|------|------|------|
+| `ibiz-platform/` | 源码备份（含 Manus 插件） | 与 ibiz-sim 完全一致 ✓ |
+| `ibiz-github/` | GitHub Pages 部署源码（已移除 Manus 插件） | 与 ibiz-sim 完全一致 ✓ |
+| Manus `ibiz-sim` | 原生开发环境，checkpoint `1dd01da7` | 运行正常 ✓ |

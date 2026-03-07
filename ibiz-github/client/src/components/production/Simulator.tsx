@@ -60,6 +60,7 @@ import { useDesignPlan, designToProductions, designToDecisions } from "@/lib/Des
 import { loadDesignPlans, type DesignPlanConfig } from "@/lib/designerTypes";
 import { solveOptimal, solveSinglePeriod } from "@/lib/solver";
 import { recordPlanUsage } from "@/lib/planStorage";
+import { RefreshCw } from "lucide-react";
 
 // ============================================================
 // Toast
@@ -246,8 +247,28 @@ export function ProductionSimulator() {
     [config, productions, decisions]
   );
 
-  // 加载方案设计列表
-  const designPlans = React.useMemo(() => loadDesignPlans(), []);
+  // 加载方案设计列表（每次渲染都重新读取，以便检测变更）
+  const [designPlansVersion, setDesignPlansVersion] = React.useState(0);
+  const designPlans = React.useMemo(() => loadDesignPlans(), [designPlansVersion]);
+
+  // 定期检测方案列表是否有变更（每 2 秒检查一次 localStorage）
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setDesignPlansVersion(v => v + 1);
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 检测当前加载的方案是否已被修改
+  const designOutdated = React.useMemo(() => {
+    if (!activeDesign || !selectedPlanId) return false;
+    const latestPlan = designPlans.find(p => p.id === selectedPlanId);
+    if (!latestPlan) return false;
+    // 比较 updatedAt 时间戳
+    const activeUpdatedAt = (activeDesign as any).updatedAt;
+    if (activeUpdatedAt && latestPlan.updatedAt !== activeUpdatedAt) return true;
+    return false;
+  }, [activeDesign, selectedPlanId, designPlans]);
 
   // ============================================================
   // 操作函数
@@ -494,6 +515,39 @@ export function ProductionSimulator() {
           重置参数
         </Button>
       </div>
+
+      {/* ===== 方案变更提示条 ===== */}
+      {designOutdated && selectedPlanId && (
+        <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 animate-in slide-in-from-top-2 fade-in duration-300">
+          <AlertTriangle className="size-4 shrink-0" />
+          <span className="text-sm font-medium flex-1">
+            当前方案「{designSource}」已在设计器中被修改，模拟数据可能已过时
+          </span>
+          <Button
+            size="sm"
+            className="h-7 bg-amber-600 hover:bg-amber-700 text-white text-xs"
+            onClick={() => {
+              handleLoadDesign(selectedPlanId!);
+              showToast("已重新加载最新方案", "success");
+            }}
+          >
+            <RefreshCw className="size-3 mr-1" />
+            重新加载
+          </Button>
+          <button
+            className="text-amber-500 hover:text-amber-700 text-xs"
+            onClick={() => {
+              // 将 activeDesign 的 updatedAt 更新为最新值以消除提示
+              const latestPlan = designPlans.find(p => p.id === selectedPlanId);
+              if (latestPlan) {
+                setActiveDesign({ ...activeDesign!, ...(({ updatedAt: latestPlan.updatedAt }) as any) } as any);
+              }
+            }}
+          >
+            忽略
+          </button>
+        </div>
+      )}
 
       {/* ===== 联动自动求解开关 ===== */}
       {activeDesign && (

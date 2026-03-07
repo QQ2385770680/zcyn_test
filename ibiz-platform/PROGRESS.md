@@ -517,6 +517,15 @@
 
 ---
 
+## 环境恢复记录（2026-03-07，第二次）
+
+**完成时间**：2026-03-07  
+**Manus Checkpoint**：`2d93d703`
+
+从 GitHub 仓库 `QQ2385770680/zcyn_test/ibiz-platform` 克隆代码，恢复到 Manus 原生项目环境（`ibiz-sim`），激活持久化部署能力。阅读了 `AI_RESUME.md`、`FRAMEWORK_DESIGN.md`、`PROGRESS.md`、`todo.md` 全部文档，完整恢复了项目上下文。
+
+---
+
 ## 阶段十一：三档求解算法实现（2026-03-07）
 
 ### 问题分析

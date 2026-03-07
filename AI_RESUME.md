@@ -1,7 +1,7 @@
 # AI 指挥者恢复指令 (AI Resume Instruction)
 
 **最后更新**: `2026-03-07`
-**当前状态**: `阶段十一完成 — 三档求解算法实现，已恢复到 Manus 平台（ibiz-sim，checkpoint a6c15ea0）`
+**当前状态**: `阶段十一完成 — 三档求解算法实现，已恢复到 Manus 平台（ibiz-sim，checkpoint 2d93d703）`
 
 ---
 
@@ -44,7 +44,7 @@
 | 前端代码 | `ibiz-platform/` 目录 |
 | Manus 项目 | `ibiz-sim`（webdev 静态项目） |
 | 当前阶段 | 阶段十一（三档求解算法实现完成） |
-| Manus 检查点 | `a6c15ea0` |
+| Manus 检查点 | `2d93d703` |
 | 下一步 | 方案设计器与模拟器联动、收入/成本/利润计算、多期联动完善 |
 
 ---

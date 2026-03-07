@@ -3,7 +3,7 @@
 ## 当前状态
 - **阶段**：阶段十一完成（三档求解算法实现）
 - **Manus 项目名**：ibiz-sim
-- **最新 Manus 检查点**：`ffd71d97`
+- **最新 Manus 检查点**：`a6c15ea0`
 - **技术栈**：React 19 + Tailwind 4 + shadcn/ui + wouter + Vite
 
 ## 恢复步骤

@@ -67,8 +67,7 @@ export function AppSidebar() {
             iB
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
-            <span className="text-sm font-semibold text-foreground">无双决策引擎</span>
-            <span className="text-xs text-muted-foreground">智能决策辅助系统</span>
+            <span className="text-base font-bold text-foreground leading-tight">无双决策</span>
           </div>
         </div>
       </SidebarHeader>

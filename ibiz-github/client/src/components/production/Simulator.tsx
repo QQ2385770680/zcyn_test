@@ -58,7 +58,7 @@ import {
 } from "@/lib/engine";
 import { useDesignPlan, designToProductions, designToDecisions } from "@/lib/DesignPlanContext";
 import { loadDesignPlans, type DesignPlanConfig } from "@/lib/designerTypes";
-import { solveOptimal, solveSinglePeriod } from "@/lib/solver";
+import { solveOptimal, solveSinglePeriod, searchOptimalHiring } from "@/lib/solver";
 import { recordPlanUsage } from "@/lib/planStorage";
 import { RefreshCw, ChevronRight } from "lucide-react";
 import {
@@ -144,6 +144,7 @@ interface SimCacheData {
   initialMachines: number;
   initialWorkers: number;
   algorithmId?: string;
+  autoSolveLinked?: boolean;
 }
 
 function saveSimCache(data: SimCacheData) {
@@ -201,8 +202,10 @@ export function ProductionSimulator() {
   const [initMachinesStr, setInitMachinesStr] = React.useState(String(config.initialMachines));
   const [initWorkersStr, setInitWorkersStr] = React.useState(String(config.initialWorkers));
 
-  // 联动自动求解开关
-  const [autoSolveLinked, setAutoSolveLinked] = React.useState(false);
+  // 联动自动求解开关（从缓存恢复）
+  const [autoSolveLinked, setAutoSolveLinked] = React.useState(
+    cachedSim?.autoSolveLinked ?? false
+  );
 
   // 算法选择
   const [algorithmId, setAlgorithmId] = React.useState<string>(
@@ -233,10 +236,11 @@ export function ProductionSimulator() {
         initialMachines: config.initialMachines,
         initialWorkers: config.initialWorkers,
         algorithmId,
+        autoSolveLinked,
       });
     }, 500);
     return () => clearTimeout(timer);
-  }, [productions, decisions, activeDesign, designSource, selectedPlanId, openPeriods, config.initialMachines, config.initialWorkers, algorithmId]);
+  }, [productions, decisions, activeDesign, designSource, selectedPlanId, openPeriods, config.initialMachines, config.initialWorkers, algorithmId, autoSolveLinked]);
 
   // 检查是否有来自设计器/我的方案的待应用数据
   React.useEffect(() => {
@@ -328,28 +332,30 @@ export function ProductionSimulator() {
         const fired = minFire;
         let hired: number;
 
-        switch (hiringConfig.mode) {
-          case "max-hire":
-            hired = maxHire;
-            break;
-          case "balance":
-            hired = minFire;
-            break;
-          case "flexible":
-            // 灵活调整模式保留用户已输入的值
-            hired = newDecisions[i].hired;
-            break;
-          case "range": {
-            const hMin = Math.max(0, hiringConfig.hiredRangeMin);
-            const hMax = Math.min(maxHire, hiringConfig.hiredRangeMax);
-            hired = Math.round((hMin + hMax) / 2);
-            break;
+        if (hiringConfig.mode === "range") {
+          // range 模式：调用精确求解（与 solveOptimal 第二轮一致）
+          const bestHiring = searchOptimalHiring(
+            i, config, newDecisions, hiringConfig, activeDesign, algorithmId
+          );
+          hired = bestHiring.hired;
+        } else {
+          switch (hiringConfig.mode) {
+            case "max-hire":
+              hired = maxHire;
+              break;
+            case "balance":
+              hired = minFire;
+              break;
+            case "flexible":
+              // 灵活调整模式保留用户已输入的值
+              hired = newDecisions[i].hired;
+              break;
+            case "fixed":
+              hired = Math.min(maxHire, Math.max(0, hiringConfig.fixedHired));
+              break;
+            default:
+              hired = maxHire;
           }
-          case "fixed":
-            hired = Math.min(maxHire, Math.max(0, hiringConfig.fixedHired));
-            break;
-          default:
-            hired = maxHire;
         }
 
         newDecisions[i] = { ...newDecisions[i], hired, fired };
@@ -530,6 +536,19 @@ export function ProductionSimulator() {
 
         <div className="flex-1" />
 
+        {/* 联动自动求解开关 */}
+        {activeDesign && (
+          <div className="flex items-center gap-1.5 h-9 px-2.5 rounded-md border border-blue-200 bg-blue-50/40">
+            <Link2 className="size-3.5 text-blue-600" />
+            <span className="text-xs font-medium text-blue-700 whitespace-nowrap">联动</span>
+            <Switch
+              checked={autoSolveLinked}
+              onCheckedChange={setAutoSolveLinked}
+              className="data-[state=checked]:bg-blue-600 scale-90"
+            />
+          </div>
+        )}
+
         {/* 算法选择器 */}
         <div className="flex items-center gap-2">
           {isAlgorithmLocked ? (
@@ -542,8 +561,9 @@ export function ProductionSimulator() {
             </div>
           ) : (
             <Select value={algorithmId} onValueChange={setAlgorithmId}>
-              <SelectTrigger className="w-[160px] h-9 text-sm border-indigo-200 bg-indigo-50/50">
-                <SelectValue />
+              <SelectTrigger className="w-auto h-9 text-sm border-indigo-200 bg-indigo-50/50 gap-1.5 px-3">
+                <span className="text-base leading-none">{currentAlgo.icon}</span>
+                <span className="font-medium text-sm">{currentAlgo.name}</span>
               </SelectTrigger>
               <SelectContent className="w-[320px]">
                 {ALGORITHMS.map((algo) => (
@@ -634,21 +654,7 @@ export function ProductionSimulator() {
         </div>
       )}
 
-      {/* ===== 联动自动求解开关 ===== */}
-      {activeDesign && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50/40">
-          <Link2 className="size-4 text-blue-600" />
-          <span className="text-xs font-medium text-blue-700">联动自动求解</span>
-          <Switch
-            checked={autoSolveLinked}
-            onCheckedChange={setAutoSolveLinked}
-            className="data-[state=checked]:bg-blue-600"
-          />
-          <span className="text-[11px] text-blue-500">
-            {autoSolveLinked ? "开启：修改某期参数后自动排后续期最优解" : "关闭"}
-          </span>
-        </div>
-      )}
+
 
       {/* ===== 颜色图例 ===== */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">

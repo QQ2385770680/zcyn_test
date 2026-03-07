@@ -58,7 +58,7 @@ const marketPlans: MarketPlan[] = [
   {
     id: "3",
     name: "Pro 冠军方案",
-    author: "iBizSim 官方",
+    author: "无双引擎",
     description: "基于历届冠军团队策略的高级优化方案",
     price: 200,
     rating: 5.0,

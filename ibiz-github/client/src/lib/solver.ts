@@ -849,7 +849,7 @@ function searchOptimalMachinePurchase(
  * 目标：让下一期执行完整最优排产后，
  * 一班可用人数（C1）和一班二班二加可用机器（C5/C7/C8）最小化
  */
-function searchOptimalHiring(
+export function searchOptimalHiring(
   periodIdx: number,
   config: GlobalConfig,
   decisions: PeriodDecision[],

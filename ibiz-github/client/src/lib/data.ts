@@ -233,24 +233,24 @@ export const PERIOD_COLOR_MAPS: Record<number, PeriodColorMap> = {
     C: { shift1: "free", ot1: "free", shift2: "required", ot2: "required" },
     D: { shift1: "free", ot1: "free", shift2: "required", ot2: "required" },
   },
-  // 第6-8期：所有单元格均无颜色标记
+  // 第6-8期：默认跟随第5期的产品数据配置
   6: {
-    A: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
-    B: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
-    C: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
-    D: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
+    A: { shift1: "required", ot1: "free", shift2: "free", ot2: "free" },
+    B: { shift1: "required", ot1: "free", shift2: "free", ot2: "free" },
+    C: { shift1: "free", ot1: "free", shift2: "required", ot2: "required" },
+    D: { shift1: "free", ot1: "free", shift2: "required", ot2: "required" },
   },
   7: {
-    A: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
-    B: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
-    C: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
-    D: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
+    A: { shift1: "required", ot1: "free", shift2: "free", ot2: "free" },
+    B: { shift1: "required", ot1: "free", shift2: "free", ot2: "free" },
+    C: { shift1: "free", ot1: "free", shift2: "required", ot2: "required" },
+    D: { shift1: "free", ot1: "free", shift2: "required", ot2: "required" },
   },
   8: {
-    A: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
-    B: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
-    C: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
-    D: { shift1: "free", ot1: "free", shift2: "free", ot2: "free" },
+    A: { shift1: "required", ot1: "free", shift2: "free", ot2: "free" },
+    B: { shift1: "required", ot1: "free", shift2: "free", ot2: "free" },
+    C: { shift1: "free", ot1: "free", shift2: "required", ot2: "required" },
+    D: { shift1: "free", ot1: "free", shift2: "required", ot2: "required" },
   },
 };
 

@@ -172,6 +172,8 @@ export interface DesignPlanConfig {
   periodHiring: PeriodHiringConfig[];
   /** 各期机器购买配置 */
   periodMachines: PeriodMachineConfig[];
+  /** 预设算法 ID（可选，设置后模拟器中锁定算法选择） */
+  algorithmId?: string;
 }
 
 /** 创建默认 8 期方案设计配置 */

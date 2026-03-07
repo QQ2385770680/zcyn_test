@@ -253,7 +253,14 @@ export function ProductionSimulator() {
         setSelectedPlanId(matchedPlan.id);
         recordPlanUsage(matchedPlan.id);
       }
-      showToast(`已加载方案「${simData.designPlan.name || "未命名方案"}`, "info");
+      // 如果方案预设了算法，自动切换并锁定
+      if (simData.designPlan.algorithmId) {
+        setAlgorithmId(simData.designPlan.algorithmId);
+        const algo = getAlgorithm(simData.designPlan.algorithmId);
+        showToast(`已加载方案「${simData.designPlan.name || "未命名方案"}」，算法已锁定为「${algo.icon} ${algo.name}」`, "info");
+      } else {
+        showToast(`已加载方案「${simData.designPlan.name || "未命名方案"}」`, "info");
+      }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -385,6 +392,11 @@ export function ProductionSimulator() {
     });
   };
 
+  // 算法是否被方案预设锁定
+  const isAlgorithmLocked = React.useMemo(() => {
+    return !!(activeDesign?.algorithmId);
+  }, [activeDesign]);
+
   const handleLoadDesign = (planId: string) => {
     const plan = designPlans.find((p) => p.id === planId);
     if (!plan) return;
@@ -400,7 +412,15 @@ export function ProductionSimulator() {
     setSelectedPlanId(planId);
     // 记录方案使用次数
     recordPlanUsage(plan.id);
-    showToast(`已加载方案「${plan.name}」`, "success");
+
+    // 如果方案预设了算法，自动切换并锁定
+    if (plan.algorithmId) {
+      setAlgorithmId(plan.algorithmId);
+      const algo = getAlgorithm(plan.algorithmId);
+      showToast(`已加载方案「${plan.name}」，算法已锁定为「${algo.icon} ${algo.name}」`, "success");
+    } else {
+      showToast(`已加载方案「${plan.name}」`, "success");
+    }
   };
 
   const handleOptimizeAll = () => {
@@ -512,24 +532,34 @@ export function ProductionSimulator() {
 
         {/* 算法选择器 */}
         <div className="flex items-center gap-2">
-          <Select value={algorithmId} onValueChange={setAlgorithmId}>
-            <SelectTrigger className="w-[160px] h-9 text-sm border-indigo-200 bg-indigo-50/50">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="w-[320px]">
-              {ALGORITHMS.map((algo) => (
-                <SelectItem key={algo.id} value={algo.id} className="py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base leading-none">{algo.icon}</span>
-                    <div>
-                      <div className="text-sm font-medium">{algo.name}</div>
-                      <div className="text-[11px] text-muted-foreground">{algo.description}</div>
+          {isAlgorithmLocked ? (
+            <div className="flex items-center gap-2 h-9 px-3 rounded-md border border-amber-200 bg-amber-50/60 text-sm">
+              <span className="text-base leading-none">{currentAlgo.icon}</span>
+              <span className="font-medium text-amber-900">{currentAlgo.name}</span>
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-300 bg-amber-100 text-amber-700">
+                方案锁定
+              </Badge>
+            </div>
+          ) : (
+            <Select value={algorithmId} onValueChange={setAlgorithmId}>
+              <SelectTrigger className="w-[160px] h-9 text-sm border-indigo-200 bg-indigo-50/50">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="w-[320px]">
+                {ALGORITHMS.map((algo) => (
+                  <SelectItem key={algo.id} value={algo.id} className="py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none">{algo.icon}</span>
+                      <div>
+                        <div className="text-sm font-medium">{algo.name}</div>
+                        <div className="text-[11px] text-muted-foreground">{algo.description}</div>
+                      </div>
                     </div>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <button
             onClick={() => setShowAlgoDetail(!showAlgoDetail)}
             className="text-indigo-500 hover:text-indigo-700 transition-colors"
@@ -566,7 +596,7 @@ export function ProductionSimulator() {
         <AlgorithmDetailPanel
           algorithms={ALGORITHMS}
           currentId={algorithmId}
-          onSelect={(id) => setAlgorithmId(id)}
+          onSelect={isAlgorithmLocked ? undefined : (id) => setAlgorithmId(id)}
           onClose={() => setShowAlgoDetail(false)}
         />
       )}
@@ -1226,7 +1256,7 @@ function ConstraintInline({ value, sub }: { value: number; sub?: string }) {
 interface AlgorithmDetailPanelProps {
   algorithms: AlgorithmProfile[];
   currentId: string;
-  onSelect: (id: string) => void;
+  onSelect?: (id: string) => void;
   onClose: () => void;
 }
 
@@ -1256,11 +1286,15 @@ function AlgorithmDetailPanel({ algorithms, currentId, onSelect, onClose }: Algo
             return (
               <div
                 key={algo.id}
-                onClick={() => onSelect(algo.id)}
-                className={`relative rounded-lg border p-4 cursor-pointer transition-all ${
+                onClick={() => onSelect?.(algo.id)}
+                className={`relative rounded-lg border p-4 transition-all ${
+                  !onSelect ? "cursor-default" : "cursor-pointer"
+                } ${
                   isActive
                     ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300 shadow-sm"
-                    : "border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/30"
+                    : onSelect
+                      ? "border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/30"
+                      : "border-gray-200 bg-white opacity-60"
                 }`}
               >
                 {/* 选中标记 */}

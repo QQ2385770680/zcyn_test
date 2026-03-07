@@ -49,6 +49,7 @@ import { useConfig } from "@/lib/ConfigContext";
 import { PERIOD_COLOR_MAPS, type CellColor, generateId } from "@/lib/data";
 import { useDesignPlan } from "@/lib/DesignPlanContext";
 import { useLocation } from "wouter";
+import { ALGORITHMS, NO_PRESET_ALGORITHM, getAlgorithm, TRAIT_LABELS } from "@/lib/algorithms";
 import {
   type ProductionMode,
   type CellConfig,
@@ -573,6 +574,57 @@ export function ProductionDesigner() {
           <Badge variant="outline" className="text-xs text-emerald-600 border-emerald-200 bg-emerald-50 shrink-0">
             编辑中
           </Badge>
+        )}
+      </div>
+
+      {/* 算法预设选择器 */}
+      <div className="flex items-center gap-3 p-3 rounded-lg border border-indigo-100 bg-indigo-50/30">
+        <div className="flex items-center gap-2 shrink-0">
+          <Settings2 className="size-4 text-indigo-600" />
+          <span className="text-sm font-medium text-indigo-900">求解算法</span>
+        </div>
+        <Select
+          value={plan.algorithmId || NO_PRESET_ALGORITHM}
+          onValueChange={(val) => setPlan(prev => ({
+            ...prev,
+            algorithmId: val === NO_PRESET_ALGORITHM ? undefined : val,
+          }))}
+        >
+          <SelectTrigger className="h-9 text-sm w-[260px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_PRESET_ALGORITHM}>
+              <span className="text-muted-foreground">不预设（用户在模拟器中自行选择）</span>
+            </SelectItem>
+            {ALGORITHMS.map(algo => (
+              <SelectItem key={algo.id} value={algo.id}>
+                <span className="flex items-center gap-1.5">
+                  <span>{algo.icon}</span>
+                  <span className="font-medium">{algo.name}</span>
+                  <span className="text-muted-foreground text-xs">{algo.description}</span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {plan.algorithmId && plan.algorithmId !== NO_PRESET_ALGORITHM && (() => {
+          const algo = getAlgorithm(plan.algorithmId);
+          return (
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="text-indigo-600 font-medium">预设后模拟器将锁定使用此算法</span>
+              <span className="text-gray-300">|</span>
+              {(Object.keys(algo.traits) as Array<keyof typeof algo.traits>).map(key => (
+                <span key={key} className="flex items-center gap-0.5">
+                  <span>{TRAIT_LABELS[key]}</span>
+                  <span className="font-mono text-indigo-600">{algo.traits[key]}</span>
+                </span>
+              ))}
+            </div>
+          );
+        })()}
+        {(!plan.algorithmId || plan.algorithmId === NO_PRESET_ALGORITHM) && (
+          <span className="text-xs text-muted-foreground">用户可在生产模拟中自由选择算法</span>
         )}
       </div>
 

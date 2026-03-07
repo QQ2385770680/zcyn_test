@@ -370,6 +370,160 @@ function optimizeForPrimary(
   return result;
 }
 
+/**
+ * 智能混合优化：在均衡性约束内微调产量，提升 primary 资源利用率
+ *
+ * 与 optimizeForPrimary 的关键区别：
+ * - 每个产品的调整幅度限制在 ±maxAdjustRatio 以内
+ * - 保证产品间不会出现极端偏差
+ */
+function optimizeSmartMix(
+  result: Record<ProductKey, number>,
+  cells: CellInfo[],
+  primaryCap: number,
+  primaryCoeffKey: "laborCoeff" | "machineCoeff",
+  primaryMul: number,
+  secondaryCap: number,
+  secondaryCoeffKey: "laborCoeff" | "machineCoeff",
+  secondaryMul: number,
+  maxAdjustRatio: number = 0.20,
+): Record<ProductKey, number> {
+  const adjustable = cells.filter(c => c.mode !== "fixed" && c.mode !== "blank");
+  if (adjustable.length < 2) return result;
+
+  // 记录每个产品的 Round-Robin 基准值，用于计算调整上下限
+  const baseline: Record<string, number> = {};
+  for (const cell of adjustable) {
+    baseline[cell.product] = result[cell.product];
+  }
+
+  // 计算效率比 = primary消耗 / secondary消耗
+  const efficiencyRatio = (cell: CellInfo) => {
+    const pCost = cell[primaryCoeffKey] * primaryMul;
+    const sCost = cell[secondaryCoeffKey] * secondaryMul;
+    return sCost > 0 ? pCost / sCost : Infinity;
+  };
+
+  // 按效率比降序排列
+  const sorted = [...adjustable].sort((a, b) => efficiencyRatio(b) - efficiencyRatio(a));
+
+  // 计算当前资源消耗
+  const calcUsage = () => {
+    let pUsed = 0, sUsed = 0;
+    for (const cell of cells) {
+      const qty = result[cell.product];
+      if (qty > 0) {
+        pUsed += qty * cell[primaryCoeffKey] * primaryMul;
+        sUsed += qty * cell[secondaryCoeffKey] * secondaryMul;
+      }
+    }
+    return { pUsed, sUsed };
+  };
+
+  // 计算每个产品的调整上下限（基于基准值的 ±maxAdjustRatio）
+  const getAdjustBounds = (cell: CellInfo) => {
+    const base = baseline[cell.product] || 0;
+    const maxDelta = Math.max(1, Math.floor(base * maxAdjustRatio)); // 至少允许调整 1
+    const minAllowed = Math.max(
+      cell.mode === "required" ? cell.rangeMin : 0,
+      base - maxDelta,
+    );
+    const maxAllowed = Math.min(cell.rangeMax, base + maxDelta);
+    return { minAllowed, maxAllowed };
+  };
+
+  // 迭代优化：对每对 (high, low) 尝试受限交换
+  let improved = true;
+  let iterations = 0;
+  const maxIterations = 300;
+
+  while (improved && iterations < maxIterations) {
+    improved = false;
+    iterations++;
+
+    for (let hi = 0; hi < sorted.length; hi++) {
+      const highCell = sorted[hi];
+      const highPCost = highCell[primaryCoeffKey] * primaryMul;
+      const highSCost = highCell[secondaryCoeffKey] * secondaryMul;
+      const highBounds = getAdjustBounds(highCell);
+
+      for (let lo = sorted.length - 1; lo > hi; lo--) {
+        const lowCell = sorted[lo];
+        const lowPCost = lowCell[primaryCoeffKey] * primaryMul;
+        const lowSCost = lowCell[secondaryCoeffKey] * secondaryMul;
+        const lowBounds = getAdjustBounds(lowCell);
+
+        // 只有 high 的 primary 效率更高才有意义
+        if (highPCost <= lowPCost + 0.0001) continue;
+
+        // 受限于均衡性约束的最大可减少/增加量
+        const maxReduce = result[lowCell.product] - lowBounds.minAllowed;
+        if (maxReduce <= 0) continue;
+
+        const maxIncrease = highBounds.maxAllowed - result[highCell.product];
+        if (maxIncrease <= 0) continue;
+
+        // 计算当前资源状态
+        const { pUsed, sUsed } = calcUsage();
+        const pSlack = primaryCap - pUsed;
+        const sSlack = secondaryCap - sUsed;
+
+        // 搜索最优的 (reduce, increase) 组合
+        let bestDeltaP = 0;
+        let bestReduce = 0;
+        let bestIncrease = 0;
+
+        const searchLimit = Math.min(maxReduce, 100);
+
+        for (let r = 0; r <= searchLimit; r++) {
+          const newPSlack = pSlack + r * lowPCost;
+          const newSSlack = sSlack + r * lowSCost;
+
+          const maxByP = Math.floor((newPSlack + 0.001) / highPCost);
+          const maxByS = newSSlack >= 0 ? Math.floor((newSSlack + 0.001) / highSCost) : 0;
+          const inc = Math.min(maxByP, maxByS, maxIncrease);
+
+          if (inc <= 0 && r === 0) continue;
+          if (inc < 0) continue;
+
+          const deltaP = inc * highPCost - r * lowPCost;
+          if (deltaP > bestDeltaP + 0.0001) {
+            bestDeltaP = deltaP;
+            bestReduce = r;
+            bestIncrease = inc;
+          }
+        }
+
+        if (bestDeltaP > 0.0001 && (bestReduce > 0 || bestIncrease > 0)) {
+          result[lowCell.product] -= bestReduce;
+          result[highCell.product] += bestIncrease;
+          improved = true;
+          break;
+        }
+      }
+      if (improved) break;
+    }
+  }
+
+  // 最后一步：用剩余资源补充任意产品（按效率比降序，但受均衡性约束）
+  const { pUsed: finalP, sUsed: finalS } = calcUsage();
+  let remP = primaryCap - finalP;
+  let remS = secondaryCap - finalS;
+  for (const cell of sorted) {
+    const bounds = getAdjustBounds(cell);
+    if (result[cell.product] >= bounds.maxAllowed) continue;
+    const pCost = cell[primaryCoeffKey] * primaryMul;
+    const sCost = cell[secondaryCoeffKey] * secondaryMul;
+    while (result[cell.product] < bounds.maxAllowed && pCost <= remP + 0.001 && sCost <= remS + 0.001) {
+      result[cell.product]++;
+      remP -= pCost;
+      remS -= sCost;
+    }
+  }
+
+  return result;
+}
+
 // ============================================================
 // 产量求解（第二层）
 // ============================================================
@@ -393,9 +547,9 @@ function solvePeriodProduction(
   const production = emptyPeriodProduction();
   const products = config.products;
   const algo = getAlgorithm(algorithmId);
-  const useOptimize = algo.solverStrategy === "roundRobinOptimized";
+  const strategy = algo.solverStrategy;
 
-  /** 根据算法策略决定是否执行尾部优化 */
+  /** 根据算法策略决定执行哪种尾部优化 */
   function applyStrategy(
     allocated: Record<ProductKey, number>,
     cells: CellInfo[],
@@ -406,11 +560,19 @@ function solvePeriodProduction(
     secondaryField: "machineCoeff" | "laborCoeff",
     secondaryMul: number,
   ): Record<ProductKey, number> {
-    if (useOptimize) {
+    if (strategy === "roundRobinOptimized") {
       return optimizeForPrimary(
         allocated, cells,
         primaryCap, primaryField, primaryMul,
         secondaryCap, secondaryField, secondaryMul,
+      );
+    }
+    if (strategy === "roundRobinSmartMix") {
+      return optimizeSmartMix(
+        allocated, cells,
+        primaryCap, primaryField, primaryMul,
+        secondaryCap, secondaryField, secondaryMul,
+        0.20, // 最大调整比例 20%
       );
     }
     return allocated;

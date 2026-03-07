@@ -114,6 +114,38 @@ export const ALGORITHMS: AlgorithmProfile[] = [
     bestFor: "资源极度紧张、需要榨干每一台机器的极限场景，或仅生产少数产品时",
     solverStrategy: "roundRobinOptimized",
   },
+  {
+    id: "smartmix",
+    name: "智能混合",
+    shortName: "混合",
+    icon: "🧠",
+    description: "兼顾均衡与利用率，在均衡约束内智能微调",
+    detail:
+      "在 Round-Robin 均匀分配基础上，增加受限优化阶段。" +
+      "与极限利用不同，智能混合对每个产品的调整幅度限制在 ±20% 以内，" +
+      "确保产品间不会出现极端偏差。优化方向与极限利用相同（提高 primary 利用率），" +
+      "但通过均衡性约束保证结果可控。适合大多数竞赛场景，" +
+      "在资源利用率和产品均衡性之间取得最佳平衡。",
+    traits: {
+      resourceUtilization: 4,
+      productBalance: 4,
+      totalOutput: 4,
+      stability: 4,
+    },
+    pros: [
+      "资源利用率显著优于均衡排产",
+      "产品间差异可控（每个产品最多调整 ±20%）",
+      "总产量接近均衡排产水平",
+      "行为稳定可预测，不会出现极端偏差",
+    ],
+    cons: [
+      "资源残差不如极限利用低",
+      "在产品数量极少时优化空间有限",
+      "20% 限制可能在某些极端场景下不够灵活",
+    ],
+    bestFor: "大多数竞赛场景的推荐选择，兼顾资源利用率与产品均衡性",
+    solverStrategy: "roundRobinSmartMix",
+  },
 ];
 
 // ============================================================
@@ -122,6 +154,9 @@ export const ALGORITHMS: AlgorithmProfile[] = [
 
 /** 默认算法 ID */
 export const DEFAULT_ALGORITHM_ID = "balanced";
+
+/** 无预设算法标识（方案设计器中使用） */
+export const NO_PRESET_ALGORITHM = "__none__";
 
 /** 根据 ID 获取算法档案 */
 export function getAlgorithm(id: string): AlgorithmProfile {

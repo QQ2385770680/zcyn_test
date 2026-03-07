@@ -116,8 +116,22 @@ function getCellInfo(
   if (designConfig) {
     const periodConfig = designConfig.periodProductions[period - 1];
     if (periodConfig) {
-      const cellCfg: CellConfig = periodConfig[shift][product];
-      mode = cellCfg.mode;
+      let cellCfg: CellConfig = periodConfig[shift][product];
+      // follow-prev: 递归向前查找直到找到非 follow-prev 的配置
+      if (cellCfg.mode === "follow-prev" && period > 1) {
+        for (let p = period - 2; p >= 0; p--) {
+          const prevCfg = designConfig.periodProductions[p]?.[shift]?.[product];
+          if (prevCfg && prevCfg.mode !== "follow-prev") {
+            cellCfg = prevCfg;
+            break;
+          }
+        }
+        // 如果所有前期都是 follow-prev，回退到 required
+        if (cellCfg.mode === "follow-prev") {
+          cellCfg = { ...cellCfg, mode: "required" };
+        }
+      }
+      mode = cellCfg.mode as typeof mode;
       fixedValue = cellCfg.fixedValue;
       rangeMin = cellCfg.range.min;
       rangeMax = cellCfg.range.max;

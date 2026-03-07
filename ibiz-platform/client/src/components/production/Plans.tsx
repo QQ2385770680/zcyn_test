@@ -308,7 +308,7 @@ function UnifiedPlanCard({
   }
 
   // 计算设计器方案的配置统计
-  let designStats = { required: 0, optional: 0, blank: 0, fixed: 0 };
+  let designStats: Record<string, number> = { required: 0, optional: 0, blank: 0, fixed: 0, "follow-prev": 0 };
   if (plan.designPlan) {
     for (const period of plan.designPlan.periodProductions) {
       for (const shiftKey of ["shift1", "ot1", "shift2", "ot2"] as const) {

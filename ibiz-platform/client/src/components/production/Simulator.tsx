@@ -246,24 +246,36 @@ export function ProductionSimulator() {
   React.useEffect(() => {
     const simData = consumeSimData();
     if (simData) {
-      setProductions(simData.productions);
-      setDecisions(simData.decisions);
-      setDesignSource(simData.designPlan.name || "未命名方案");
-      setActiveDesign(simData.designPlan);
+      const plan = simData.designPlan;
+      const effectiveAlgoId = plan.algorithmId || algorithmId;
+
+      // 执行 solveOptimal 精确求解（确保 range 模式雇佣/机器决策准确）
+      const result = solveOptimal(config, plan, effectiveAlgoId);
+      const mergedDecisions = result.decisions.map((d, i) => {
+        if (plan.periodHiring[i]?.mode === "flexible") {
+          return { ...d, hired: 0, fired: d.fired };
+        }
+        return d;
+      });
+
+      setProductions(result.productions);
+      setDecisions(mergedDecisions);
+      setDesignSource(plan.name || "未命名方案");
+      setActiveDesign(plan);
       setOpenPeriods(new Set([1]));
       // 在方案列表中查找匹配的 ID，让下拉框显示选中状态
-      const matchedPlan = designPlans.find(p => p.name === simData.designPlan.name);
+      const matchedPlan = designPlans.find(p => p.name === plan.name);
       if (matchedPlan) {
         setSelectedPlanId(matchedPlan.id);
         recordPlanUsage(matchedPlan.id);
       }
       // 如果方案预设了算法，自动切换并锁定
-      if (simData.designPlan.algorithmId) {
-        setAlgorithmId(simData.designPlan.algorithmId);
-        const algo = getAlgorithm(simData.designPlan.algorithmId);
-        showToast(`已加载方案「${simData.designPlan.name || "未命名方案"}」，算法已锁定为「${algo.icon} ${algo.name}」`, "info");
+      if (plan.algorithmId) {
+        setAlgorithmId(plan.algorithmId);
+        const algo = getAlgorithm(plan.algorithmId);
+        showToast(`已加载方案「${plan.name || "未命名方案"}」，算法已锁定为「${algo.icon} ${algo.name}」（${result.elapsed.toFixed(1)}ms）`, "info");
       } else {
-        showToast(`已加载方案「${simData.designPlan.name || "未命名方案"}」`, "info");
+        showToast(`已加载方案「${plan.name || "未命名方案"}」（${result.elapsed.toFixed(1)}ms）`, "info");
       }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -407,12 +419,22 @@ export function ProductionSimulator() {
     const plan = designPlans.find((p) => p.id === planId);
     if (!plan) return;
 
-    // 从设计方案转换为模拟器数据
-    const newProductions = designToProductions(plan.periodProductions);
-    const newDecisions = designToDecisions(plan.periodHiring, plan.periodMachines, config);
+    // 确定使用的算法：方案预设 > 当前选择
+    const effectiveAlgorithmId = plan.algorithmId || algorithmId;
 
-    setProductions(newProductions);
-    setDecisions(newDecisions);
+    // 直接执行 solveOptimal 精确求解（包含 range 模式的精确雇佣/机器决策）
+    const result = solveOptimal(config, plan, effectiveAlgorithmId);
+
+    // 保留灵活调整模式下的初始值（hired=0，用户后续手动输入）
+    const mergedDecisions = result.decisions.map((d, i) => {
+      if (plan.periodHiring[i]?.mode === "flexible") {
+        return { ...d, hired: 0, fired: d.fired };
+      }
+      return d;
+    });
+
+    setProductions(result.productions);
+    setDecisions(mergedDecisions);
     setActiveDesign(plan);
     setDesignSource(plan.name || "未命名方案");
     setSelectedPlanId(planId);
@@ -423,9 +445,9 @@ export function ProductionSimulator() {
     if (plan.algorithmId) {
       setAlgorithmId(plan.algorithmId);
       const algo = getAlgorithm(plan.algorithmId);
-      showToast(`已加载方案「${plan.name}」，算法已锁定为「${algo.icon} ${algo.name}」`, "success");
+      showToast(`已加载方案「${plan.name}」，算法已锁定为「${algo.icon} ${algo.name}」（${result.elapsed.toFixed(1)}ms）`, "success");
     } else {
-      showToast(`已加载方案「${plan.name}」`, "success");
+      showToast(`已加载方案「${plan.name}」（${result.elapsed.toFixed(1)}ms）`, "success");
     }
   };
 

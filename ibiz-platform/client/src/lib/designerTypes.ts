@@ -16,7 +16,10 @@
  * - 'blank':    不填 — 此单元格不生产（产量固定为 0）
  * - 'fixed':    固定 — 用户指定固定产量值
  */
-export type ProductionMode = "required" | "optional" | "blank" | "fixed";
+/**
+ * - 'follow-prev': 跟随上期 — 继承上一期同一班次同一产品的行为模式和参数（仅 P6-P8 可用）
+ */
+export type ProductionMode = "required" | "optional" | "blank" | "fixed" | "follow-prev";
 
 /** 产量求解范围 */
 export interface ProductionRange {

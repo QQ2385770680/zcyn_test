@@ -86,6 +86,7 @@ const MODE_OPTIONS: { value: ProductionMode; label: string; color: string; desc:
   { value: "optional", label: "选填", color: "bg-sky-50 text-sky-700 border-sky-200", desc: "求解器可选择是否分配" },
   { value: "blank", label: "不填", color: "bg-gray-100 text-gray-500 border-gray-200", desc: "不生产，产量为 0" },
   { value: "fixed", label: "固定", color: "bg-emerald-50 text-emerald-700 border-emerald-200", desc: "用户指定固定产量" },
+  { value: "follow-prev", label: "跟随", color: "bg-purple-50 text-purple-700 border-purple-200", desc: "继承上一期同位置的行为模式和参数（仅 P6-P8）" },
 ];
 
 const HIRING_OPTIONS: { value: HiringMode; label: string; desc: string }[] = [
@@ -506,7 +507,7 @@ export function ProductionDesigner() {
 
   // 统计当前期各模式数量
   const currentProdConfig = plan.periodProductions[currentPeriod - 1];
-  const modeStats = { required: 0, optional: 0, blank: 0, fixed: 0 };
+  const modeStats: Record<string, number> = { required: 0, optional: 0, blank: 0, fixed: 0, "follow-prev": 0 };
   for (const shift of SHIFTS) {
     for (const product of PRODUCTS) {
       modeStats[currentProdConfig[shift.key][product].mode]++;
@@ -741,12 +742,36 @@ export function ProductionDesigner() {
             }}>
               全部必填
             </Button>
+            {currentPeriod >= 6 && (
+              <Button variant="outline" size="sm" className="h-7 text-xs px-2.5 border-purple-300 text-purple-700 hover:bg-purple-50" onClick={() => {
+                setPlan(prev => {
+                  const next = { ...prev };
+                  const pIdx = currentPeriod - 1;
+                  const periodConfig = { ...next.periodProductions[pIdx] };
+                  for (const shiftKey of ["shift1", "ot1", "shift2", "ot2"] as const) {
+                    const shift = { ...periodConfig[shiftKey] };
+                    for (const product of ["A", "B", "C", "D"] as const) {
+                      shift[product] = { ...shift[product], mode: "follow-prev" as ProductionMode };
+                    }
+                    periodConfig[shiftKey] = shift;
+                  }
+                  next.periodProductions = [...next.periodProductions];
+                  next.periodProductions[pIdx] = periodConfig;
+                  return next;
+                });
+                showToast(`第 ${currentPeriod} 期已设为全部跟随上期`, "info");
+              }}>
+                全部跟随
+              </Button>
+            )}
           </div>
 
           {/* Mode Legend */}
           <div className="flex items-center gap-3 text-xs flex-wrap">
             <span className="text-gray-500 font-medium">行为模式：</span>
-            {MODE_OPTIONS.map(opt => (
+            {MODE_OPTIONS
+              .filter(opt => opt.value !== "follow-prev" || currentPeriod >= 6)
+              .map(opt => (
               <TooltipProvider key={opt.value}>
                 <Tooltip>
                   <TooltipTrigger>
@@ -759,7 +784,7 @@ export function ProductionDesigner() {
               </TooltipProvider>
             ))}
             <span className="text-gray-400 ml-2">
-              统计：必填 {modeStats.required} | 选填 {modeStats.optional} | 不填 {modeStats.blank} | 固定 {modeStats.fixed}
+              统计：必填 {modeStats.required} | 选填 {modeStats.optional} | 不填 {modeStats.blank} | 固定 {modeStats.fixed}{(modeStats["follow-prev"] || 0) > 0 ? ` | 跟随 ${modeStats["follow-prev"]}` : ""}
             </span>
           </div>
 
@@ -792,7 +817,7 @@ export function ProductionDesigner() {
                         {PRODUCTS.map((product, prodIdx) => {
                           const cell = currentProdConfig[shift.key][product];
                           // 规则标记根据当前行为模式动态变化
-                          const ruleColor: CellColor = cell.mode === "required" ? "required" : cell.mode === "optional" ? "optional" : cell.mode === "blank" ? "zero" : cell.mode === "fixed" ? "fixed" : "free";
+                          const ruleColor: CellColor = cell.mode === "required" ? "required" : cell.mode === "optional" ? "optional" : cell.mode === "blank" ? "zero" : cell.mode === "fixed" ? "fixed" : cell.mode === "follow-prev" ? "optional" : "free";
                           const isFirstInGroup = prodIdx === 0;
                           return (
                             <tr
@@ -824,10 +849,12 @@ export function ProductionDesigner() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {MODE_OPTIONS.map(opt => (
+                                    {MODE_OPTIONS
+                                      .filter(opt => opt.value !== "follow-prev" || currentPeriod >= 6)
+                                      .map(opt => (
                                       <SelectItem key={opt.value} value={opt.value} className="text-xs">
                                         <span className="flex items-center gap-1.5">
-                                          <span className={`w-2 h-2 rounded-full ${opt.value === "required" ? "bg-amber-500" : opt.value === "optional" ? "bg-sky-400" : opt.value === "blank" ? "bg-gray-300" : "bg-emerald-500"}`} />
+                                          <span className={`w-2 h-2 rounded-full ${opt.value === "required" ? "bg-amber-500" : opt.value === "optional" ? "bg-sky-400" : opt.value === "blank" ? "bg-gray-300" : opt.value === "follow-prev" ? "bg-purple-500" : "bg-emerald-500"}`} />
                                           {opt.label}
                                         </span>
                                       </SelectItem>
@@ -1254,6 +1281,10 @@ function CellParamEditor({
 }) {
   if (cell.mode === "blank") {
     return <span className="text-xs text-gray-300">产量 = 0</span>;
+  }
+
+  if (cell.mode === "follow-prev") {
+    return <span className="text-xs text-purple-500">← 继承上期配置</span>;
   }
 
   if (cell.mode === "fixed") {

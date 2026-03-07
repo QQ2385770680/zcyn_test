@@ -48,6 +48,7 @@ import type {
   PeriodHiringConfig,
   PeriodMachineConfig,
 } from "./designerTypes";
+import { getAlgorithm, DEFAULT_ALGORITHM_ID } from "./algorithms";
 
 // ============================================================
 // 类型定义
@@ -387,9 +388,33 @@ function solvePeriodProduction(
   config: GlobalConfig,
   period: number,
   designConfig?: DesignPlanConfig | null,
+  algorithmId: string = DEFAULT_ALGORITHM_ID,
 ): PeriodProduction {
   const production = emptyPeriodProduction();
   const products = config.products;
+  const algo = getAlgorithm(algorithmId);
+  const useOptimize = algo.solverStrategy === "roundRobinOptimized";
+
+  /** 根据算法策略决定是否执行尾部优化 */
+  function applyStrategy(
+    allocated: Record<ProductKey, number>,
+    cells: CellInfo[],
+    primaryCap: number,
+    primaryField: "machineCoeff" | "laborCoeff",
+    primaryMul: number,
+    secondaryCap: number,
+    secondaryField: "machineCoeff" | "laborCoeff",
+    secondaryMul: number,
+  ): Record<ProductKey, number> {
+    if (useOptimize) {
+      return optimizeForPrimary(
+        allocated, cells,
+        primaryCap, primaryField, primaryMul,
+        secondaryCap, secondaryField, secondaryMul,
+      );
+    }
+    return allocated;
+  }
 
   // ---- Step 1: shift1（第一班）→ 让 C5（一班可用机器）最小 ----
   {
@@ -403,19 +428,13 @@ function solvePeriodProduction(
       "laborCoeff",
       1,
     );
-    // 尾部优化：在均匀分配基础上，调整产品比例最大化机器利用率
-    const optimized = optimizeForPrimary(
-      allocated,
-      cells,
-      resources.machines,
-      "machineCoeff",
-      1,
-      resources.totalAvailableWorkers,
-      "laborCoeff",
-      1,
+    const final = applyStrategy(
+      allocated, cells,
+      resources.machines, "machineCoeff", 1,
+      resources.totalAvailableWorkers, "laborCoeff", 1,
     );
     for (const p of PRODUCTS) {
-      production.shift1[p] = optimized[p];
+      production.shift1[p] = final[p];
     }
   }
 
@@ -437,19 +456,13 @@ function solvePeriodProduction(
       "machineCoeff",
       1,
     );
-    // 尾部优化：最大化人力利用率
-    const optimized = optimizeForPrimary(
-      allocated,
-      cells,
-      remainingLabor,
-      "laborCoeff",
-      1,
-      resources.machines,
-      "machineCoeff",
-      1,
+    const final = applyStrategy(
+      allocated, cells,
+      remainingLabor, "laborCoeff", 1,
+      resources.machines, "machineCoeff", 1,
     );
     for (const p of PRODUCTS) {
-      production.shift2[p] = optimized[p];
+      production.shift2[p] = final[p];
     }
   }
 
@@ -474,19 +487,13 @@ function solvePeriodProduction(
       "laborCoeff",
       2,
     );
-    // 尾部优化：最大化机器利用率
-    const optimized = optimizeForPrimary(
-      allocated,
-      cells,
-      remainingMachineForOt1,
-      "machineCoeff",
-      2,
-      shift1Labor,
-      "laborCoeff",
-      2,
+    const final = applyStrategy(
+      allocated, cells,
+      remainingMachineForOt1, "machineCoeff", 2,
+      shift1Labor, "laborCoeff", 2,
     );
     for (const p of PRODUCTS) {
-      production.ot1[p] = optimized[p];
+      production.ot1[p] = final[p];
     }
   }
 
@@ -502,19 +509,13 @@ function solvePeriodProduction(
       "laborCoeff",
       2,
     );
-    // 尾部优化：最大化机器利用率
-    const optimized = optimizeForPrimary(
-      allocated,
-      cells,
-      resources.machines,
-      "machineCoeff",
-      2,
-      shift2Labor,
-      "laborCoeff",
-      2,
+    const final = applyStrategy(
+      allocated, cells,
+      resources.machines, "machineCoeff", 2,
+      shift2Labor, "laborCoeff", 2,
     );
     for (const p of PRODUCTS) {
-      production.ot2[p] = optimized[p];
+      production.ot2[p] = final[p];
     }
   }
 
@@ -612,12 +613,13 @@ function evaluateResourceScore(
   config: GlobalConfig,
   decisions: PeriodDecision[],
   designConfig?: DesignPlanConfig | null,
+  algorithmId: string = DEFAULT_ALGORITHM_ID,
 ): number {
   const resources = calcChainedResources(targetPeriodIdx, config, decisions);
   const period = targetPeriodIdx + 1;
 
   // 在目标期执行完整最优排产
-  const production = solvePeriodProduction(resources, config, period, designConfig);
+  const production = solvePeriodProduction(resources, config, period, designConfig, algorithmId);
 
   // 计算约束残差
   const cs = calcConstraints(production, resources, config.products);
@@ -650,6 +652,7 @@ function searchOptimalMachinePurchase(
   decisions: PeriodDecision[],
   machineConfig: PeriodMachineConfig,
   designConfig?: DesignPlanConfig | null,
+  algorithmId: string = DEFAULT_ALGORITHM_ID,
 ): number {
   const { rangeMin, rangeMax } = machineConfig;
 
@@ -665,7 +668,7 @@ function searchOptimalMachinePurchase(
 
   for (let p = rangeMin; p <= rangeMax; p++) {
     decisions[purchasePeriodIdx].machinesPurchased = p;
-    const score = evaluateResourceScore(targetPeriodIdx, config, decisions, designConfig);
+    const score = evaluateResourceScore(targetPeriodIdx, config, decisions, designConfig, algorithmId);
 
     if (score > bestScore) {
       bestScore = score;
@@ -690,6 +693,7 @@ function searchOptimalHiring(
   decisions: PeriodDecision[],
   hiringConfig: PeriodHiringConfig,
   designConfig?: DesignPlanConfig | null,
+  algorithmId: string = DEFAULT_ALGORITHM_ID,
 ): { hired: number; fired: number } {
   // 计算当前期的实际期初工人数
   let currentWorkers = config.initialWorkers;
@@ -719,7 +723,7 @@ function searchOptimalHiring(
     decisions[periodIdx].hired = h;
     decisions[periodIdx].fired = fired;
 
-    const score = evaluateResourceScore(nextPeriodIdx, config, decisions, designConfig);
+    const score = evaluateResourceScore(nextPeriodIdx, config, decisions, designConfig, algorithmId);
 
     if (score > bestScore) {
       bestScore = score;
@@ -755,6 +759,7 @@ function searchOptimalHiring(
 export function solveOptimal(
   config: GlobalConfig,
   designConfig?: DesignPlanConfig | null,
+  algorithmId: string = DEFAULT_ALGORITHM_ID,
 ): SolverResult {
   const startTime = performance.now();
 
@@ -781,7 +786,7 @@ export function solveOptimal(
     const resources = calcChainedResources(i, config, decisions);
 
     // 求解本期产量
-    const production = solvePeriodProduction(resources, config, period, designConfig);
+    const production = solvePeriodProduction(resources, config, period, designConfig, algorithmId);
     productions.push(production);
 
     currentInitialWorkers = currentInitialWorkers + hired - fired;
@@ -801,7 +806,7 @@ export function solveOptimal(
     if (machineConfig && machineConfig.mode === "range") {
       const targetPeriodIdx = i + 2; // 机器两期后到货
       const bestPurchase = searchOptimalMachinePurchase(
-        i, targetPeriodIdx, config, decisions, machineConfig, designConfig
+        i, targetPeriodIdx, config, decisions, machineConfig, designConfig, algorithmId
       );
       if (decisions[i].machinesPurchased !== bestPurchase) {
         decisions[i].machinesPurchased = bestPurchase;
@@ -820,7 +825,7 @@ export function solveOptimal(
       decisions[i].fired = minFire;
 
       const bestHiring = searchOptimalHiring(
-        i, config, decisions, hiringConfig, designConfig
+        i, config, decisions, hiringConfig, designConfig, algorithmId
       );
       if (decisions[i].hired !== bestHiring.hired) {
         decisions[i].hired = bestHiring.hired;
@@ -833,7 +838,7 @@ export function solveOptimal(
     if (needRecalcProduction) {
       for (let j = i; j < config.periods; j++) {
         const r = calcChainedResources(j, config, decisions);
-        productions[j] = solvePeriodProduction(r, config, j + 1, designConfig);
+        productions[j] = solvePeriodProduction(r, config, j + 1, designConfig, algorithmId);
       }
     }
   }
@@ -843,7 +848,7 @@ export function solveOptimal(
   // ================================================================
   for (let i = 0; i < config.periods; i++) {
     const resources = calcChainedResources(i, config, decisions);
-    productions[i] = solvePeriodProduction(resources, config, i + 1, designConfig);
+    productions[i] = solvePeriodProduction(resources, config, i + 1, designConfig, algorithmId);
   }
 
   // ================================================================
@@ -908,8 +913,9 @@ export function solveSinglePeriod(
   config: GlobalConfig,
   period: number,
   designConfig?: DesignPlanConfig | null,
+  algorithmId: string = DEFAULT_ALGORITHM_ID,
 ): PeriodProduction {
-  return solvePeriodProduction(resources, config, period, designConfig);
+  return solvePeriodProduction(resources, config, period, designConfig, algorithmId);
 }
 
 /**

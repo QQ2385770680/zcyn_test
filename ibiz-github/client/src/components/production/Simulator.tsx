@@ -60,7 +60,14 @@ import { useDesignPlan, designToProductions, designToDecisions } from "@/lib/Des
 import { loadDesignPlans, type DesignPlanConfig } from "@/lib/designerTypes";
 import { solveOptimal, solveSinglePeriod } from "@/lib/solver";
 import { recordPlanUsage } from "@/lib/planStorage";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ChevronRight } from "lucide-react";
+import {
+  ALGORITHMS,
+  DEFAULT_ALGORITHM_ID,
+  getAlgorithm,
+  TRAIT_LABELS,
+  type AlgorithmProfile,
+} from "@/lib/algorithms";
 
 // ============================================================
 // Toast
@@ -136,6 +143,7 @@ interface SimCacheData {
   openPeriods: number[];
   initialMachines: number;
   initialWorkers: number;
+  algorithmId?: string;
 }
 
 function saveSimCache(data: SimCacheData) {
@@ -196,6 +204,13 @@ export function ProductionSimulator() {
   // 联动自动求解开关
   const [autoSolveLinked, setAutoSolveLinked] = React.useState(false);
 
+  // 算法选择
+  const [algorithmId, setAlgorithmId] = React.useState<string>(
+    cachedSim?.algorithmId ?? DEFAULT_ALGORITHM_ID
+  );
+  const currentAlgo = React.useMemo(() => getAlgorithm(algorithmId), [algorithmId]);
+  const [showAlgoDetail, setShowAlgoDetail] = React.useState(false);
+
   // 恢复缓存的初始参数
   React.useEffect(() => {
     if (cachedSim && cachedSim.initialMachines !== undefined && cachedSim.initialWorkers !== undefined) {
@@ -217,10 +232,11 @@ export function ProductionSimulator() {
         openPeriods: Array.from(openPeriods),
         initialMachines: config.initialMachines,
         initialWorkers: config.initialWorkers,
+        algorithmId,
       });
     }, 500);
     return () => clearTimeout(timer);
-  }, [productions, decisions, activeDesign, designSource, selectedPlanId, openPeriods, config.initialMachines, config.initialWorkers]);
+  }, [productions, decisions, activeDesign, designSource, selectedPlanId, openPeriods, config.initialMachines, config.initialWorkers, algorithmId]);
 
   // 检查是否有来自设计器/我的方案的待应用数据
   React.useEffect(() => {
@@ -337,11 +353,11 @@ export function ProductionSimulator() {
       const updatedResources = updatedResults[i]?.resources;
       if (!updatedResources) break;
 
-      const optimized = solveSinglePeriod(updatedResources, config, period, activeDesign);
+      const optimized = solveSinglePeriod(updatedResources, config, period, activeDesign, algorithmId);
       newProductions[i] = optimized;
     }
     return { productions: newProductions, decisions: newDecisions };
-  }, [autoSolveLinked, activeDesign, config]);
+  }, [autoSolveLinked, activeDesign, config, algorithmId]);
 
   const updateProduction = (
     periodIdx: number,
@@ -388,7 +404,7 @@ export function ProductionSimulator() {
   };
 
   const handleOptimizeAll = () => {
-    const result = solveOptimal(config, activeDesign);
+    const result = solveOptimal(config, activeDesign, algorithmId);
     // 保留灵活调整模式下用户手动输入的雇佣人数
     const mergedDecisions = result.decisions.map((d, i) => {
       if (activeDesign?.periodHiring[i]?.mode === "flexible") {
@@ -398,7 +414,7 @@ export function ProductionSimulator() {
     });
     setProductions(result.productions);
     setDecisions(mergedDecisions);
-    showToast(`已完成全局最优排产（耗时 ${result.elapsed.toFixed(1)}ms，A-B差=${result.balance.abDiff}，C-D差=${result.balance.cdDiff}）`, "success");
+    showToast(`[${currentAlgo.icon}${currentAlgo.shortName}] 全局最优排产完成（${result.elapsed.toFixed(1)}ms，A-B差=${result.balance.abDiff}，C-D差=${result.balance.cdDiff}）`, "success");
   };
 
   const handleOptimizePeriod = (periodIdx: number) => {
@@ -408,13 +424,13 @@ export function ProductionSimulator() {
     const resources = tempResults[periodIdx]?.resources;
     if (!resources) return;
 
-    const optimized = solveSinglePeriod(resources, config, period, activeDesign);
+    const optimized = solveSinglePeriod(resources, config, period, activeDesign, algorithmId);
     setProductions((prev) => {
       const next = [...prev];
       next[periodIdx] = optimized;
       return next;
     });
-    showToast(`第 ${period} 期已最优排产`, "success");
+    showToast(`[${currentAlgo.icon}${currentAlgo.shortName}] 第 ${period} 期已最优排产`, "success");
   };
 
   const handleResetAll = () => {
@@ -494,6 +510,35 @@ export function ProductionSimulator() {
 
         <div className="flex-1" />
 
+        {/* 算法选择器 */}
+        <div className="flex items-center gap-2">
+          <Select value={algorithmId} onValueChange={setAlgorithmId}>
+            <SelectTrigger className="w-[160px] h-9 text-sm border-indigo-200 bg-indigo-50/50">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="w-[320px]">
+              {ALGORITHMS.map((algo) => (
+                <SelectItem key={algo.id} value={algo.id} className="py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base leading-none">{algo.icon}</span>
+                    <div>
+                      <div className="text-sm font-medium">{algo.name}</div>
+                      <div className="text-[11px] text-muted-foreground">{algo.description}</div>
+                    </div>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <button
+            onClick={() => setShowAlgoDetail(!showAlgoDetail)}
+            className="text-indigo-500 hover:text-indigo-700 transition-colors"
+            title="查看算法详情"
+          >
+            <Info className="size-4" />
+          </button>
+        </div>
+
         <Button
           onClick={() => {
             if (!activeDesign) {
@@ -515,6 +560,16 @@ export function ProductionSimulator() {
           重置参数
         </Button>
       </div>
+
+      {/* ===== 算法详情面板（可折叠） ===== */}
+      {showAlgoDetail && (
+        <AlgorithmDetailPanel
+          algorithms={ALGORITHMS}
+          currentId={algorithmId}
+          onSelect={(id) => setAlgorithmId(id)}
+          onClose={() => setShowAlgoDetail(false)}
+        />
+      )}
 
       {/* ===== 方案变更提示条 ===== */}
       {designOutdated && selectedPlanId && (
@@ -1161,5 +1216,137 @@ function ConstraintInline({ value, sub }: { value: number; sub?: string }) {
       </span>
       {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
     </div>
+  );
+}
+
+// ============================================================
+// 算法详情面板
+// ============================================================
+
+interface AlgorithmDetailPanelProps {
+  algorithms: AlgorithmProfile[];
+  currentId: string;
+  onSelect: (id: string) => void;
+  onClose: () => void;
+}
+
+function AlgorithmDetailPanel({ algorithms, currentId, onSelect, onClose }: AlgorithmDetailPanelProps) {
+  return (
+    <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50/40 to-white overflow-hidden">
+      <CardContent className="p-4 space-y-4">
+        {/* 标题栏 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sparkles className="size-4 text-indigo-600" />
+            <span className="text-sm font-semibold text-indigo-900">求解算法选择</span>
+            <span className="text-xs text-muted-foreground">— 不同算法适用于不同场景，选择后所有求解操作将使用该算法</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+          >
+            收起
+          </button>
+        </div>
+
+        {/* 算法卡片网格 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {algorithms.map((algo) => {
+            const isActive = algo.id === currentId;
+            return (
+              <div
+                key={algo.id}
+                onClick={() => onSelect(algo.id)}
+                className={`relative rounded-lg border p-4 cursor-pointer transition-all ${
+                  isActive
+                    ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300 shadow-sm"
+                    : "border-gray-200 bg-white hover:border-indigo-200 hover:bg-indigo-50/30"
+                }`}
+              >
+                {/* 选中标记 */}
+                {isActive && (
+                  <div className="absolute top-2 right-2">
+                    <Badge className="bg-indigo-600 text-white text-[10px] px-1.5 py-0.5">当前</Badge>
+                  </div>
+                )}
+
+                {/* 算法头部 */}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">{algo.icon}</span>
+                  <div>
+                    <div className="text-sm font-bold text-gray-900">{algo.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{algo.description}</div>
+                  </div>
+                </div>
+
+                {/* 四维特性条 */}
+                <div className="space-y-1.5 mb-3">
+                  {(Object.keys(algo.traits) as Array<keyof typeof algo.traits>).map((key) => (
+                    <div key={key} className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground w-16 shrink-0 text-right">
+                        {TRAIT_LABELS[key]}
+                      </span>
+                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            algo.traits[key] >= 4
+                              ? "bg-emerald-500"
+                              : algo.traits[key] >= 3
+                              ? "bg-amber-400"
+                              : "bg-red-400"
+                          }`}
+                          style={{ width: `${(algo.traits[key] / 5) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-mono text-muted-foreground w-4 text-right">
+                        {algo.traits[key]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* 优缺点 */}
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <div>
+                    <div className="text-[10px] font-semibold text-emerald-700 mb-1">优势</div>
+                    {algo.pros.map((p, i) => (
+                      <div key={i} className="text-[11px] text-gray-600 flex items-start gap-1 mb-0.5">
+                        <span className="text-emerald-500 shrink-0 mt-0.5">+</span>
+                        <span>{p}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-semibold text-red-600 mb-1">局限</div>
+                    {algo.cons.map((c, i) => (
+                      <div key={i} className="text-[11px] text-gray-600 flex items-start gap-1 mb-0.5">
+                        <span className="text-red-400 shrink-0 mt-0.5">-</span>
+                        <span>{c}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 适用场景 */}
+                <div className="pt-2 border-t border-gray-100">
+                  <span className="text-[10px] font-semibold text-indigo-600">适用场景：</span>
+                  <span className="text-[11px] text-gray-600">{algo.bestFor}</span>
+                </div>
+
+                {/* 详细说明（折叠） */}
+                <details className="mt-2">
+                  <summary className="text-[10px] text-indigo-500 cursor-pointer hover:text-indigo-700">
+                    查看算法原理
+                  </summary>
+                  <p className="text-[11px] text-gray-500 mt-1 leading-relaxed whitespace-pre-line">
+                    {algo.detail}
+                  </p>
+                </details>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

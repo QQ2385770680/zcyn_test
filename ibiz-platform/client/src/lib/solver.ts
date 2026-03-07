@@ -221,6 +221,154 @@ function allocateRoundRobin(
   return result;
 }
 
+/**
+ * 尾部优化：在 Round-Robin 均匀分配后，通过调整产品比例最大化 primary 资源利用率
+ *
+ * 核心问题：
+ * Round-Robin 均匀分配后，不同产品的 primary/secondary 效率比不同。
+ * 例如 D 的 machineCoeff/laborCoeff = 2.0，C 的 = 1.636。
+ * 在 secondary 约束下，D 每单位 secondary 能消耗更多 primary。
+ *
+ * 算法：“减 N 换 M”批量交换
+ * 对每对 (high, low) 产品，计算“减少 N 个 low，增加 M 个 high”的最优比例：
+ * - 减少 low 释放 secondary，用释放的 secondary 加上剩余 secondary 来增加 high
+ * - 只要最终 primary 消耗增加且所有约束满足，就接受
+ */
+function optimizeForPrimary(
+  result: Record<ProductKey, number>,
+  cells: CellInfo[],
+  primaryCap: number,
+  primaryCoeffKey: "laborCoeff" | "machineCoeff",
+  primaryMul: number,
+  secondaryCap: number,
+  secondaryCoeffKey: "laborCoeff" | "machineCoeff",
+  secondaryMul: number,
+): Record<ProductKey, number> {
+  const adjustable = cells.filter(c => c.mode !== "fixed" && c.mode !== "blank");
+  if (adjustable.length < 2) return result;
+
+  // 计算效率比 = primary消耗 / secondary消耗
+  const efficiencyRatio = (cell: CellInfo) => {
+    const pCost = cell[primaryCoeffKey] * primaryMul;
+    const sCost = cell[secondaryCoeffKey] * secondaryMul;
+    return sCost > 0 ? pCost / sCost : Infinity;
+  };
+
+  // 按效率比降序排列
+  const sorted = [...adjustable].sort((a, b) => efficiencyRatio(b) - efficiencyRatio(a));
+
+  // 计算当前资源消耗
+  const calcUsage = () => {
+    let pUsed = 0, sUsed = 0;
+    for (const cell of cells) {
+      const qty = result[cell.product];
+      if (qty > 0) {
+        pUsed += qty * cell[primaryCoeffKey] * primaryMul;
+        sUsed += qty * cell[secondaryCoeffKey] * secondaryMul;
+      }
+    }
+    return { pUsed, sUsed };
+  };
+
+  // 迭代优化：对每对 (high, low) 尝试批量交换
+  let improved = true;
+  let iterations = 0;
+  const maxIterations = 500;
+
+  while (improved && iterations < maxIterations) {
+    improved = false;
+    iterations++;
+
+    for (let hi = 0; hi < sorted.length; hi++) {
+      const highCell = sorted[hi];
+      const highPCost = highCell[primaryCoeffKey] * primaryMul;
+      const highSCost = highCell[secondaryCoeffKey] * secondaryMul;
+
+      for (let lo = sorted.length - 1; lo > hi; lo--) {
+        const lowCell = sorted[lo];
+        const lowPCost = lowCell[primaryCoeffKey] * primaryMul;
+        const lowSCost = lowCell[secondaryCoeffKey] * secondaryMul;
+
+        // 只有 high 的 primary 效率更高才有意义
+        if (highPCost <= lowPCost + 0.0001) continue;
+
+        const lowMin = lowCell.mode === "required" ? lowCell.rangeMin : 0;
+        const maxReduce = result[lowCell.product] - lowMin;
+        if (maxReduce <= 0) continue;
+
+        const highMax = highCell.rangeMax;
+        const maxIncrease = highMax - result[highCell.product];
+        if (maxIncrease <= 0) continue;
+
+        // 计算当前资源状态
+        const { pUsed, sUsed } = calcUsage();
+        const pSlack = primaryCap - pUsed;   // primary 剩余
+        const sSlack = secondaryCap - sUsed; // secondary 剩余
+
+        // 搜索最优的 (reduce, increase) 组合
+        // 减少 reduce 个 low，增加 increase 个 high
+        // 约束：
+        //   pUsed - reduce*lowPCost + increase*highPCost <= primaryCap
+        //   sUsed - reduce*lowSCost + increase*highSCost <= secondaryCap
+        // 目标：最大化 increase*highPCost - reduce*lowPCost (即 primary 消耗增量)
+
+        let bestDeltaP = 0;
+        let bestReduce = 0;
+        let bestIncrease = 0;
+
+        // 限制搜索范围以保证性能
+        const searchLimit = Math.min(maxReduce, 200);
+
+        for (let r = 0; r <= searchLimit; r++) {
+          // 减少 r 个 low 后的资源剩余
+          const newPSlack = pSlack + r * lowPCost;
+          const newSSlack = sSlack + r * lowSCost;
+
+          // 能增加多少个 high
+          const maxByP = Math.floor((newPSlack + 0.001) / highPCost);
+          const maxByS = newSSlack >= 0 ? Math.floor((newSSlack + 0.001) / highSCost) : 0;
+          const inc = Math.min(maxByP, maxByS, maxIncrease);
+
+          if (inc <= 0 && r === 0) continue;
+          if (inc < 0) continue;
+
+          const deltaP = inc * highPCost - r * lowPCost;
+          if (deltaP > bestDeltaP + 0.0001) {
+            bestDeltaP = deltaP;
+            bestReduce = r;
+            bestIncrease = inc;
+          }
+        }
+
+        if (bestDeltaP > 0.0001 && (bestReduce > 0 || bestIncrease > 0)) {
+          result[lowCell.product] -= bestReduce;
+          result[highCell.product] += bestIncrease;
+          improved = true;
+          break;
+        }
+      }
+      if (improved) break;
+    }
+  }
+
+  // 最后一步：尝试用剩余资源补充任意产品（按效率比降序）
+  const { pUsed: finalP, sUsed: finalS } = calcUsage();
+  let remP = primaryCap - finalP;
+  let remS = secondaryCap - finalS;
+  for (const cell of sorted) {
+    if (result[cell.product] >= cell.rangeMax) continue;
+    const pCost = cell[primaryCoeffKey] * primaryMul;
+    const sCost = cell[secondaryCoeffKey] * secondaryMul;
+    while (result[cell.product] < cell.rangeMax && pCost <= remP + 0.001 && sCost <= remS + 0.001) {
+      result[cell.product]++;
+      remP -= pCost;
+      remS -= sCost;
+    }
+  }
+
+  return result;
+}
+
 // ============================================================
 // 产量求解（第二层）
 // ============================================================
@@ -255,8 +403,19 @@ function solvePeriodProduction(
       "laborCoeff",
       1,
     );
+    // 尾部优化：在均匀分配基础上，调整产品比例最大化机器利用率
+    const optimized = optimizeForPrimary(
+      allocated,
+      cells,
+      resources.machines,
+      "machineCoeff",
+      1,
+      resources.totalAvailableWorkers,
+      "laborCoeff",
+      1,
+    );
     for (const p of PRODUCTS) {
-      production.shift1[p] = allocated[p];
+      production.shift1[p] = optimized[p];
     }
   }
 
@@ -278,8 +437,19 @@ function solvePeriodProduction(
       "machineCoeff",
       1,
     );
+    // 尾部优化：最大化人力利用率
+    const optimized = optimizeForPrimary(
+      allocated,
+      cells,
+      remainingLabor,
+      "laborCoeff",
+      1,
+      resources.machines,
+      "machineCoeff",
+      1,
+    );
     for (const p of PRODUCTS) {
-      production.shift2[p] = allocated[p];
+      production.shift2[p] = optimized[p];
     }
   }
 
@@ -304,8 +474,19 @@ function solvePeriodProduction(
       "laborCoeff",
       2,
     );
+    // 尾部优化：最大化机器利用率
+    const optimized = optimizeForPrimary(
+      allocated,
+      cells,
+      remainingMachineForOt1,
+      "machineCoeff",
+      2,
+      shift1Labor,
+      "laborCoeff",
+      2,
+    );
     for (const p of PRODUCTS) {
-      production.ot1[p] = allocated[p];
+      production.ot1[p] = optimized[p];
     }
   }
 
@@ -321,8 +502,19 @@ function solvePeriodProduction(
       "laborCoeff",
       2,
     );
+    // 尾部优化：最大化机器利用率
+    const optimized = optimizeForPrimary(
+      allocated,
+      cells,
+      resources.machines,
+      "machineCoeff",
+      2,
+      shift2Labor,
+      "laborCoeff",
+      2,
+    );
     for (const p of PRODUCTS) {
-      production.ot2[p] = allocated[p];
+      production.ot2[p] = optimized[p];
     }
   }
 

@@ -137,7 +137,7 @@ const SIM_CACHE_KEY = "ibiz-sim-cache";
 interface SimCacheData {
   productions: PeriodProduction[];
   decisions: PeriodDecision[];
-  activeDesign: DesignPlanConfig | null;
+  activeDesign: (DesignPlanConfig & { id?: string; updatedAt?: string }) | null;
   designSource: string | null;
   selectedPlanId: string | undefined;
   openPeriods: number[];
@@ -178,7 +178,8 @@ export function ProductionSimulator() {
   );
 
   // 当前加载的设计方案
-  const [activeDesign, setActiveDesign] = React.useState<DesignPlanConfig | null>(
+  // activeDesign 可能包含 id 和 updatedAt（从 loadDesignPlans 加载时带入）
+  const [activeDesign, setActiveDesign] = React.useState<(DesignPlanConfig & { id?: string; updatedAt?: string }) | null>(
     cachedSim?.activeDesign ?? null
   );
   const [designSource, setDesignSource] = React.useState<string | null>(
@@ -208,11 +209,24 @@ export function ProductionSimulator() {
   );
 
   // 算法选择
-  const [algorithmId, setAlgorithmId] = React.useState<string>(
+  const [algorithmId, setAlgorithmIdRaw] = React.useState<string>(
     cachedSim?.algorithmId ?? DEFAULT_ALGORITHM_ID
   );
   const currentAlgo = React.useMemo(() => getAlgorithm(algorithmId), [algorithmId]);
   const [showAlgoDetail, setShowAlgoDetail] = React.useState(false);
+
+  // 包装 setAlgorithmId：切换算法时自动重新求解（仅当有 activeDesign 且算法未被方案锁定时）
+  const pendingAlgoResolveRef = React.useRef<string | null>(null);
+  const setAlgorithmId = React.useCallback((newAlgoId: string) => {
+    pendingAlgoResolveRef.current = newAlgoId;
+    setAlgorithmIdRaw(newAlgoId);
+  }, []);
+
+  // 用 ref 跟踪 activeDesign 以便在算法切换回调中使用
+  const activeDesignRef = React.useRef(activeDesign);
+  React.useEffect(() => { activeDesignRef.current = activeDesign; }, [activeDesign]);
+  const decisionsRef = React.useRef(decisions);
+  React.useEffect(() => { decisionsRef.current = decisions; }, [decisions]);
 
   // 恢复缓存的初始参数
   React.useEffect(() => {
@@ -298,14 +312,26 @@ export function ProductionSimulator() {
     return () => clearInterval(interval);
   }, []);
 
-  // 检测当前加载的方案是否已被修改
+  // 检测当前加载的方案是否已被修改（Bug Fix：增强检测逻辑，同时支持 updatedAt 比较和内容深度比较）
   const designOutdated = React.useMemo(() => {
     if (!activeDesign || !selectedPlanId) return false;
     const latestPlan = designPlans.find(p => p.id === selectedPlanId);
     if (!latestPlan) return false;
-    // 比较 updatedAt 时间戳
-    const activeUpdatedAt = (activeDesign as any).updatedAt;
-    if (activeUpdatedAt && latestPlan.updatedAt !== activeUpdatedAt) return true;
+    // 方法1：比较 updatedAt 时间戳
+    const activeUpdatedAt = activeDesign.updatedAt;
+    if (activeUpdatedAt && latestPlan.updatedAt && latestPlan.updatedAt !== activeUpdatedAt) return true;
+    // 方法2：如果没有 updatedAt，通过内容深度比较检测变更
+    // 比较关键字段：name, description, periodHiring, periodMachines, periodProductions, algorithmId
+    if (!activeUpdatedAt) {
+      try {
+        const keysToCompare = ['name', 'description', 'periodHiring', 'periodMachines', 'periodProductions', 'algorithmId'] as const;
+        for (const key of keysToCompare) {
+          if (JSON.stringify((activeDesign as any)[key]) !== JSON.stringify((latestPlan as any)[key])) {
+            return true;
+          }
+        }
+      } catch { /* 序列化失败时不报错 */ }
+    }
     return false;
   }, [activeDesign, selectedPlanId, designPlans]);
 
@@ -409,6 +435,30 @@ export function ProductionSimulator() {
       return next;
     });
   };
+
+  // 算法切换时自动重新求解（Bug Fix：确保同一套方案切换算法后雇佣策略立即更新）
+  const prevAlgorithmIdRef = React.useRef(algorithmId);
+  React.useEffect(() => {
+    const prevAlgo = prevAlgorithmIdRef.current;
+    prevAlgorithmIdRef.current = algorithmId;
+    // 仅当算法真正变化且有活跃方案时才重新求解
+    if (prevAlgo === algorithmId) return;
+    if (!activeDesignRef.current) return;
+    // 如果算法被方案锁定，不允许用户切换（此时是方案加载触发的，不需要重复求解）
+    if (activeDesignRef.current.algorithmId) return;
+    const design = activeDesignRef.current;
+    const result = solveOptimal(config, design, algorithmId);
+    const mergedDecisions = result.decisions.map((d, i) => {
+      if (design.periodHiring[i]?.mode === "flexible") {
+        return { ...d, hired: decisionsRef.current[i]?.hired ?? 0, fired: d.fired };
+      }
+      return d;
+    });
+    setProductions(result.productions);
+    setDecisions(mergedDecisions);
+    const algo = getAlgorithm(algorithmId);
+    showToast(`已切换算法为「${algo.icon} ${algo.name}」，已自动重新求解（${result.elapsed.toFixed(1)}ms）`, "success");
+  }, [algorithmId, config]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 算法是否被方案预设锁定
   const isAlgorithmLocked = React.useMemo(() => {
@@ -667,7 +717,7 @@ export function ProductionSimulator() {
               // 将 activeDesign 的 updatedAt 更新为最新值以消除提示
               const latestPlan = designPlans.find(p => p.id === selectedPlanId);
               if (latestPlan) {
-                setActiveDesign({ ...activeDesign!, ...(({ updatedAt: latestPlan.updatedAt }) as any) } as any);
+                setActiveDesign({ ...activeDesign!, updatedAt: latestPlan.updatedAt });
               }
             }}
           >

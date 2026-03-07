@@ -971,6 +971,9 @@ export function solveOptimal(
   // ================================================================
   // 第二轮：精确求解 range 模式的机器购买和雇佣
   // 按期顺序：每期先求机器，再求雇佣
+  // 关键修复：当某期决策变化后，必须重新计算后续所有期的雇佣决策
+  //          （包括 balance/max-hire/fixed 等非 range 模式），
+  //          因为期初工人数会因前期决策变化而改变。
   // ================================================================
   for (let i = 0; i < config.periods; i++) {
     const period = i + 1;
@@ -1010,8 +1013,55 @@ export function solveOptimal(
       }
     }
 
-    // 如果决策变化了，重算本期及后续期的产量
+    // 如果决策变化了，重新计算后续所有期的雇佣决策和产量
     if (needRecalcProduction) {
+      // 关键：重新计算后续期的雇佣决策（所有模式，不仅仅是 range）
+      for (let j = i + 1; j < config.periods; j++) {
+        const futureHiringConfig = designConfig?.periodHiring[j];
+        if (futureHiringConfig) {
+          // 重新计算该期的期初工人数
+          let cw = config.initialWorkers;
+          for (let k = 0; k < j; k++) {
+            cw = cw + decisions[k].hired - decisions[k].fired;
+          }
+          const minFire = Math.ceil(cw * (config.minFireRate / 100));
+          const maxHire = Math.floor(cw * (config.maxHireRate / 100));
+
+          // 统一重新计算所有模式的雇佣决策
+          switch (futureHiringConfig.mode) {
+            case "max-hire":
+              decisions[j].hired = maxHire;
+              decisions[j].fired = minFire;
+              break;
+            case "balance":
+              decisions[j].hired = minFire;
+              decisions[j].fired = minFire;
+              break;
+            case "flexible":
+              // 灵活模式保留当前值，但更新 fired
+              decisions[j].fired = minFire;
+              break;
+            case "fixed":
+              decisions[j].hired = Math.min(maxHire, Math.max(0, futureHiringConfig.fixedHired));
+              decisions[j].fired = minFire;
+              break;
+            case "range": {
+              // range 模式需要精确搜索
+              decisions[j].fired = minFire;
+              const bestHiring = searchOptimalHiring(
+                j, config, decisions, futureHiringConfig, designConfig, algorithmId
+              );
+              decisions[j].hired = bestHiring.hired;
+              decisions[j].fired = bestHiring.fired;
+              break;
+            }
+            default:
+              decisions[j].hired = maxHire;
+              decisions[j].fired = minFire;
+          }
+        }
+      }
+      // 重算本期及后续期的产量
       for (let j = i; j < config.periods; j++) {
         const r = calcChainedResources(j, config, decisions);
         productions[j] = solvePeriodProduction(r, config, j + 1, designConfig, algorithmId);
@@ -1020,9 +1070,45 @@ export function solveOptimal(
   }
 
   // ================================================================
-  // 第三轮：最终重算所有期的产量（确保一致性）
+  // 第三轮：最终一致性校验
+  // 重新计算所有期的雇佣决策和产量，确保完全一致
   // ================================================================
   for (let i = 0; i < config.periods; i++) {
+    const hiringConfig = designConfig?.periodHiring[i];
+    if (hiringConfig) {
+      let cw = config.initialWorkers;
+      for (let j = 0; j < i; j++) {
+        cw = cw + decisions[j].hired - decisions[j].fired;
+      }
+      const minFire = Math.ceil(cw * (config.minFireRate / 100));
+      const maxHire = Math.floor(cw * (config.maxHireRate / 100));
+
+      switch (hiringConfig.mode) {
+        case "max-hire":
+          decisions[i].hired = maxHire;
+          decisions[i].fired = minFire;
+          break;
+        case "balance":
+          decisions[i].hired = minFire;
+          decisions[i].fired = minFire;
+          break;
+        case "flexible":
+          // 灵活模式保留当前值，但确保 fired 正确
+          decisions[i].fired = minFire;
+          break;
+        case "fixed":
+          decisions[i].hired = Math.min(maxHire, Math.max(0, hiringConfig.fixedHired));
+          decisions[i].fired = minFire;
+          break;
+        case "range":
+          // range 模式在第二轮已精确求解，这里只确保 fired 正确
+          decisions[i].fired = minFire;
+          break;
+        default:
+          decisions[i].hired = maxHire;
+          decisions[i].fired = minFire;
+      }
+    }
     const resources = calcChainedResources(i, config, decisions);
     productions[i] = solvePeriodProduction(resources, config, i + 1, designConfig, algorithmId);
   }

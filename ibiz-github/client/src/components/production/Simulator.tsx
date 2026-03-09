@@ -35,6 +35,12 @@ import {
   AlertTriangle,
   TrendingUp,
   Link2,
+  LayoutGrid,
+  Rows3,
+  BarChart3,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
 } from "lucide-react";
 import React from "react";
 
@@ -568,6 +574,20 @@ export function ProductionSimulator() {
   const lastAvailWorkers = lastResult?.resources.totalAvailableWorkers ?? 0;
   const lastMachines = lastResult?.resources.machines ?? 0;
 
+  // 布局切换状态（2排 or 4排）
+  const [overviewLayout, setOverviewLayout] = React.useState<2 | 4>(4);
+
+  // 各期产量统计
+  const periodTotals = results.map(r => r.totalOutput.A + r.totalOutput.B + r.totalOutput.C + r.totalOutput.D);
+  const maxPeriodTotal = Math.max(...periodTotals, 1);
+  const avgPeriodTotal = periodTotals.length > 0 ? Math.round(totalAllPeriods / periodTotals.length) : 0;
+  const totalA = results.reduce((s, r) => s + r.totalOutput.A, 0);
+  const totalB = results.reduce((s, r) => s + r.totalOutput.B, 0);
+  const totalC = results.reduce((s, r) => s + r.totalOutput.C, 0);
+  const totalD = results.reduce((s, r) => s + r.totalOutput.D, 0);
+  const passCount = results.filter(r => allConstraintsSatisfied(r.constraints)).length;
+  const failCount = results.length - passCount;
+
   // ============================================================
   // 渲染
   // ============================================================
@@ -817,63 +837,245 @@ export function ProductionSimulator() {
         ))}
       </div>
 
-      {/* ===== 底部汇总 ===== */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground mb-1">排产总量</div>
-            <div className="text-2xl font-bold text-foreground">{totalAllPeriods.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground mb-1">末期可用人数</div>
-            <div className="text-2xl font-bold text-foreground">{lastAvailWorkers.toFixed(1)}</div>
-            <div className="text-xs text-muted-foreground">第{config.periods}期</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground mb-1">末期机器数</div>
-            <div className="text-2xl font-bold text-foreground">{lastMachines}</div>
-            <div className="text-xs text-muted-foreground">含购买生效</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-xs text-muted-foreground mb-1">约束状态</div>
-            <div className="text-2xl font-bold">
-              {results.every((r) => allConstraintsSatisfied(r.constraints)) ? (
-                <span className="text-emerald-600">全部通过</span>
-              ) : (
-                <span className="text-red-600">存在超限</span>
+      {/* ===== 8期全局总览 ===== */}
+      <Card className="border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/20">
+        <CardContent className="p-4 space-y-4">
+          {/* 标题栏 + 布局切换 */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="size-4 text-emerald-600" />
+              <span className="text-sm font-semibold text-foreground">8期全局总览</span>
+              <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-emerald-50 text-emerald-700 border-emerald-200">
+                {passCount}/{results.length} 通过
+              </Badge>
+              {failCount > 0 && (
+                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-red-50 text-red-600 border-red-200">
+                  {failCount} 超限
+                </Badge>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
+              <button
+                onClick={() => setOverviewLayout(4)}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                  overviewLayout === 4
+                    ? "bg-white text-emerald-700 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <LayoutGrid className="size-3" />
+                4列
+              </button>
+              <button
+                onClick={() => setOverviewLayout(2)}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all ${
+                  overviewLayout === 2
+                    ? "bg-white text-emerald-700 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Rows3 className="size-3" />
+                2列
+              </button>
+            </div>
+          </div>
 
-      {/* ===== 详细计算结果表 ===== */}
-      <Card>
-        <CardContent className="p-4">
-          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <TrendingUp className="size-4 text-emerald-600" />
-            详细计算结果
-          </h3>
+          {/* 汇总统计卡片 */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <div className="bg-white rounded-lg border border-gray-200 p-3">
+              <div className="text-[11px] text-muted-foreground mb-0.5">8期总产量</div>
+              <div className="text-xl font-bold text-foreground">{totalAllPeriods.toLocaleString()}</div>
+              <div className="text-[10px] text-muted-foreground">期均 {avgPeriodTotal.toLocaleString()}</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-3">
+              <div className="text-[11px] text-muted-foreground mb-0.5">产品分布</div>
+              <div className="flex items-baseline gap-1.5 flex-wrap">
+                <span className="text-xs font-semibold text-blue-600">A:{totalA}</span>
+                <span className="text-xs font-semibold text-violet-600">B:{totalB}</span>
+                <span className="text-xs font-semibold text-amber-600">C:{totalC}</span>
+                <span className="text-xs font-semibold text-rose-600">D:{totalD}</span>
+              </div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-3">
+              <div className="text-[11px] text-muted-foreground mb-0.5">末期可用人数</div>
+              <div className="text-xl font-bold text-foreground">{lastAvailWorkers.toFixed(1)}</div>
+              <div className="text-[10px] text-muted-foreground">第{config.periods}期</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-3">
+              <div className="text-[11px] text-muted-foreground mb-0.5">末期机器数</div>
+              <div className="text-xl font-bold text-foreground">{lastMachines}</div>
+              <div className="text-[10px] text-muted-foreground">含购买生效</div>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-3">
+              <div className="text-[11px] text-muted-foreground mb-0.5">约束状态</div>
+              <div className="text-xl font-bold">
+                {failCount === 0 ? (
+                  <span className="text-emerald-600">全部通过</span>
+                ) : (
+                  <span className="text-red-600">{failCount}期超限</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* 8期卡片网格 */}
+          <div className={`grid gap-2 ${overviewLayout === 4 ? "grid-cols-2 md:grid-cols-4" : "grid-cols-1 md:grid-cols-2"}`}>
+            {results.map((r, i) => {
+              const total = r.totalOutput.A + r.totalOutput.B + r.totalOutput.C + r.totalOutput.D;
+              const workerUtil = calcWorkerUtilization(r);
+              const machineUtil = calcMachineUtilization(r);
+              const passed = allConstraintsSatisfied(r.constraints);
+              const barWidth = maxPeriodTotal > 0 ? (total / maxPeriodTotal) * 100 : 0;
+              const prevTotal = i > 0 ? periodTotals[i - 1] : total;
+              const trend = total - prevTotal;
+              return (
+                <div
+                  key={i}
+                  className={`relative rounded-lg border p-3 transition-all overflow-hidden cursor-pointer hover:shadow-sm ${
+                    passed
+                      ? "border-gray-200 bg-white hover:border-emerald-200"
+                      : "border-red-200 bg-red-50/30 hover:border-red-300"
+                  }`}
+                  onClick={() => {
+                    if (!openPeriods.has(i + 1)) togglePeriod(i + 1);
+                    // 滚动到对应期
+                    setTimeout(() => {
+                      const el = document.getElementById(`period-${i + 1}`);
+                      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }, 100);
+                  }}
+                >
+                  {/* 产量条背景 */}
+                  <div
+                    className={`absolute bottom-0 left-0 h-1 rounded-b-lg transition-all ${
+                      passed ? "bg-emerald-400/40" : "bg-red-400/40"
+                    }`}
+                    style={{ width: `${barWidth}%` }}
+                  />
+
+                  {/* 头部：期数 + 状态 */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold text-emerald-700">P{r.period}</span>
+                      {i > 0 && trend !== 0 && (
+                        <span className={`text-[10px] flex items-center ${
+                          trend > 0 ? "text-emerald-500" : "text-red-500"
+                        }`}>
+                          {trend > 0 ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
+                          {Math.abs(trend)}
+                        </span>
+                      )}
+                      {i > 0 && trend === 0 && (
+                        <span className="text-[10px] text-gray-400 flex items-center">
+                          <Minus className="size-3" />
+                        </span>
+                      )}
+                    </div>
+                    {passed ? (
+                      <CheckCircle2 className="size-3.5 text-emerald-500" />
+                    ) : (
+                      <XCircle className="size-3.5 text-red-500" />
+                    )}
+                  </div>
+
+                  {/* 总产量 */}
+                  <div className="text-lg font-bold text-foreground mb-1.5">{total.toLocaleString()}</div>
+
+                  {/* 产品分布 */}
+                  <div className="flex items-center gap-1 mb-2 text-[10px]">
+                    <span className="text-blue-600 font-medium">A:{r.totalOutput.A}</span>
+                    <span className="text-violet-600 font-medium">B:{r.totalOutput.B}</span>
+                    <span className="text-amber-600 font-medium">C:{r.totalOutput.C}</span>
+                    <span className="text-rose-600 font-medium">D:{r.totalOutput.D}</span>
+                  </div>
+
+                  {/* 资源信息 */}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">机器</span>
+                      <span className="font-medium">{r.resources.machines}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">人数</span>
+                      <span className="font-medium">{r.resources.totalAvailableWorkers.toFixed(1)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">人力%</span>
+                      <span className={`font-semibold ${
+                        workerUtil > 90 ? "text-red-600" : workerUtil > 70 ? "text-amber-600" : "text-emerald-600"
+                      }`}>{workerUtil}%</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">机器%</span>
+                      <span className={`font-semibold ${
+                        machineUtil > 90 ? "text-red-600" : machineUtil > 70 ? "text-amber-600" : "text-emerald-600"
+                      }`}>{machineUtil}%</span>
+                    </div>
+                  </div>
+
+                  {/* 约束指标（可用人数 & 可用机器） */}
+                  <div className="mt-2 pt-2 border-t border-gray-100 space-y-1">
+                    {/* 可用人数系数 */}
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <Users className="size-3 text-muted-foreground shrink-0" />
+                      {[
+                        { v: r.constraints.c1_workersAfterShift1, l: "一班" },
+                        { v: r.constraints.c2_workersAfterOt1, l: "一加" },
+                        { v: r.constraints.c4_workersAfterOt2, l: "二加" },
+                      ].map((item, j) => {
+                        const st = getConstraintStatus(item.v);
+                        const icon = st === "fail" ? "⊗" : st === "warning" ? "△" : "⊙";
+                        const cls = item.v < -0.001 ? "text-red-600 font-semibold" : item.v <= 5 ? "text-emerald-600" : "text-amber-600";
+                        return (
+                          <span key={j} className={`${cls} font-mono`} title={`${item.l}: ${item.v.toFixed(3)}`}>
+                            {icon}{item.v.toFixed(1)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    {/* 可用机器系数 */}
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <Factory className="size-3 text-muted-foreground shrink-0" />
+                      {[
+                        { v: r.constraints.c5_machinesAfterShift1, l: "一班" },
+                        { v: r.constraints.c7_machinesAfterShift2, l: "二班" },
+                        { v: r.constraints.c8_machinesAfterOt2, l: "二加" },
+                      ].map((item, j) => {
+                        const st = getConstraintStatus(item.v);
+                        const icon = st === "fail" ? "⊗" : st === "warning" ? "△" : "⊙";
+                        const cls = item.v < -0.001 ? "text-red-600 font-semibold" : item.v <= 5 ? "text-emerald-600" : "text-amber-600";
+                        return (
+                          <span key={j} className={`${cls} font-mono`} title={`${item.l}: ${item.v.toFixed(3)}`}>
+                            {icon}{item.v.toFixed(1)}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 详细计算结果表 */}
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
-                  <th className="py-2 pr-3 font-medium">期数</th>
-                  <th className="py-2 pr-3 font-medium">机器</th>
-                  <th className="py-2 pr-3 font-medium">期初人数</th>
-                  <th className="py-2 pr-3 font-medium">解雇</th>
-                  <th className="py-2 pr-3 font-medium">雇佣</th>
-                  <th className="py-2 pr-3 font-medium">可用人数</th>
-                  <th className="py-2 pr-3 font-medium">总产量</th>
-                  <th className="py-2 pr-3 font-medium">人力%</th>
-                  <th className="py-2 pr-3 font-medium">机器%</th>
-                  <th className="py-2 font-medium">状态</th>
+                  <th className="py-1.5 pr-2 font-medium">期数</th>
+                  <th className="py-1.5 pr-2 font-medium">机器</th>
+                  <th className="py-1.5 pr-2 font-medium">期初人数</th>
+                  <th className="py-1.5 pr-2 font-medium">解雇</th>
+                  <th className="py-1.5 pr-2 font-medium">雇佣</th>
+                  <th className="py-1.5 pr-2 font-medium">可用人数</th>
+                  <th className="py-1.5 pr-2 font-medium">A</th>
+                  <th className="py-1.5 pr-2 font-medium">B</th>
+                  <th className="py-1.5 pr-2 font-medium">C</th>
+                  <th className="py-1.5 pr-2 font-medium">D</th>
+                  <th className="py-1.5 pr-2 font-medium">总产量</th>
+                  <th className="py-1.5 pr-2 font-medium">人力%</th>
+                  <th className="py-1.5 pr-2 font-medium">机器%</th>
+                  <th className="py-1.5 font-medium">状态</th>
                 </tr>
               </thead>
               <tbody>
@@ -884,33 +1086,54 @@ export function ProductionSimulator() {
                   const passed = allConstraintsSatisfied(r.constraints);
                   return (
                     <tr key={i} className="border-b last:border-0 hover:bg-gray-50/50">
-                      <td className="py-2 pr-3 font-semibold text-emerald-700">P{r.period}</td>
-                      <td className="py-2 pr-3">{r.resources.machines}</td>
-                      <td className="py-2 pr-3">{Math.round(r.resources.initialWorkers)}</td>
-                      <td className="py-2 pr-3 text-red-600">-{r.resources.fired}</td>
-                      <td className="py-2 pr-3 text-emerald-600">+{r.resources.hired}</td>
-                      <td className="py-2 pr-3">{r.resources.totalAvailableWorkers.toFixed(1)}</td>
-                      <td className="py-2 pr-3 font-semibold">{total}</td>
-                      <td className="py-2 pr-3">
+                      <td className="py-1.5 pr-2 font-semibold text-emerald-700">P{r.period}</td>
+                      <td className="py-1.5 pr-2">{r.resources.machines}</td>
+                      <td className="py-1.5 pr-2">{Math.round(r.resources.initialWorkers)}</td>
+                      <td className="py-1.5 pr-2 text-red-600">-{r.resources.fired}</td>
+                      <td className="py-1.5 pr-2 text-emerald-600">+{r.resources.hired}</td>
+                      <td className="py-1.5 pr-2">{r.resources.totalAvailableWorkers.toFixed(1)}</td>
+                      <td className="py-1.5 pr-2 text-blue-600 font-medium">{r.totalOutput.A}</td>
+                      <td className="py-1.5 pr-2 text-violet-600 font-medium">{r.totalOutput.B}</td>
+                      <td className="py-1.5 pr-2 text-amber-600 font-medium">{r.totalOutput.C}</td>
+                      <td className="py-1.5 pr-2 text-rose-600 font-medium">{r.totalOutput.D}</td>
+                      <td className="py-1.5 pr-2 font-bold">{total}</td>
+                      <td className="py-1.5 pr-2">
                         <span className={workerUtil > 90 ? "text-red-600" : workerUtil > 70 ? "text-amber-600" : "text-emerald-600"}>
                           {workerUtil}%
                         </span>
                       </td>
-                      <td className="py-2 pr-3">
+                      <td className="py-1.5 pr-2">
                         <span className={machineUtil > 90 ? "text-red-600" : machineUtil > 70 ? "text-amber-600" : "text-emerald-600"}>
                           {machineUtil}%
                         </span>
                       </td>
-                      <td className="py-2">
+                      <td className="py-1.5">
                         {passed ? (
-                          <CheckCircle2 className="size-4 text-emerald-500" />
+                          <CheckCircle2 className="size-3.5 text-emerald-500" />
                         ) : (
-                          <XCircle className="size-4 text-red-500" />
+                          <XCircle className="size-3.5 text-red-500" />
                         )}
                       </td>
                     </tr>
                   );
                 })}
+                {/* 合计行 */}
+                <tr className="border-t-2 border-gray-300 bg-gray-50/50">
+                  <td className="py-1.5 pr-2 font-bold text-foreground">合计</td>
+                  <td className="py-1.5 pr-2" />
+                  <td className="py-1.5 pr-2" />
+                  <td className="py-1.5 pr-2" />
+                  <td className="py-1.5 pr-2" />
+                  <td className="py-1.5 pr-2" />
+                  <td className="py-1.5 pr-2 text-blue-600 font-bold">{totalA}</td>
+                  <td className="py-1.5 pr-2 text-violet-600 font-bold">{totalB}</td>
+                  <td className="py-1.5 pr-2 text-amber-600 font-bold">{totalC}</td>
+                  <td className="py-1.5 pr-2 text-rose-600 font-bold">{totalD}</td>
+                  <td className="py-1.5 pr-2 font-bold text-emerald-700">{totalAllPeriods}</td>
+                  <td className="py-1.5 pr-2" />
+                  <td className="py-1.5 pr-2" />
+                  <td className="py-1.5" />
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1012,6 +1235,7 @@ function PeriodAccordion({
   return (
     <Collapsible open={isOpen} onOpenChange={onToggle}>
       {/* 头部 */}
+      <div id={`period-${period}`} />
       <CollapsibleTrigger asChild>
         <div
           className={`flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors overflow-hidden ${

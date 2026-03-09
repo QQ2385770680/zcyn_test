@@ -553,3 +553,26 @@
 - 导出常量：`SOLVER_MODE_INFO`（各模式的 label/description）
 - `solveOptimal` 和 `solveSinglePeriod` 新增可选参数 `mode?: SolverMode`
 - Manus 检查点：`ffd71d97`
+
+---
+
+## 环境恢复记录（2026-03-09，第三次）
+
+**完成时间**：2026-03-09  
+**Manus Checkpoint**：`0c602c21`
+
+从 GitHub 仓库 `QQ2385770680/zcyn_test/ibiz-platform` 克隆代码，恢复到 Manus 原生项目环境（`ibiz-sim`），激活持久化部署能力。阅读了 `AI_RESUME.md`、`FRAMEWORK_DESIGN.md`、`PROGRESS.md`、`todo.md` 全部文档，完整恢复了项目上下文（阶段十一完成状态）。
+
+### 恢复状态确认
+
+| 项目 | 状态 |
+|------|------|
+| Landing 页面 | 正常运行 ✓ |
+| 登录/注册/管理员登录 | 正常运行 ✓ |
+| 用户仪表盘 | 正常运行 ✓ |
+| 全局配置 | 正常运行 ✓ |
+| 生产模拟器（三档算法） | 正常运行 ✓ |
+| 方案设计器 | 正常运行 ✓ |
+| 我的方案 | 正常运行 ✓ |
+| 方案市场 | 正常运行 ✓ |
+| TypeScript 检查 | 无错误 ✓ |

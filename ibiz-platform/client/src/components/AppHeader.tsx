@@ -23,6 +23,7 @@ const routeLabels: Record<string, string> = {
   "/": "首页",
   "/config": "全局配置",
   "/production": "生产决策",
+  "/production/overview": "生产总览",
   "/production/simulator": "生产模拟",
   "/production/designer": "方案设计",
   "/production/plans": "我的方案",

@@ -4,8 +4,10 @@
  * 按照用户提供的表格布局：
  * 左侧：班次产量表（第一班/一加/第二班/二加 × ABCD + 可用人数 + 可用机器）
  * 右侧：本期关键参数列（本期机器、本期购买、期初人数、最少解雇、本期解雇、最大雇佣、本期雇佣）
- * 支持 2列 / 4列 切换
+ * 支持 2列 / 4列 切换（localStorage 持久化）
  * 可用人数/可用机器颜色与 Simulator 中约束颜色完全同步
+ * 支持导出 Excel（一个工作表中按一行4列排列8期卡片）
+ * 显示当前使用的方案名与算法简介
  */
 import React from "react";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +22,10 @@ import {
   TrendingUp,
   Factory,
   Users,
+  Download,
+  FileSpreadsheet,
+  Cpu,
+  BookOpen,
 } from "lucide-react";
 
 import {
@@ -30,6 +36,13 @@ import {
 } from "@/lib/data";
 import { useConfig } from "@/lib/ConfigContext";
 import { calcAllPeriods, getConstraintStatus } from "@/lib/engine";
+import { getAlgorithm, type AlgorithmProfile } from "@/lib/algorithms";
+
+// ============================================================
+// localStorage 键
+// ============================================================
+
+const LAYOUT_STORAGE_KEY = "ibiz-overview-layout";
 
 // ============================================================
 // 从 Simulator 缓存中读取排产数据
@@ -66,6 +79,127 @@ function constraintBgCell(value: number): string {
 // ============================================================
 
 const PERIOD_CN = ["一", "二", "三", "四", "五", "六", "七", "八"];
+
+// ============================================================
+// Excel 导出函数
+// ============================================================
+
+async function exportToExcel(results: PeriodResult[], schemeName: string, algoName: string) {
+  const XLSX = await import("xlsx");
+  const wb = XLSX.utils.book_new();
+
+  // 每期卡片占 10 行 × 7 列，一行4列排列，列间隔1列
+  // 行布局：标题1行 + 表头1行 + ABCD 4行 + 可用人数1行 + 可用机器1行 + 总产量1行 + 空行1行 = 10行
+  // 列布局：每期 7列（班次 + 4班次 + 参数名 + 参数值），间隔1列 = 8列/期
+  const COLS_PER_CARD = 7;
+  const COL_GAP = 1;
+  const ROWS_PER_CARD = 10;
+  const ROW_GAP = 1;
+  const CARDS_PER_ROW = 4;
+
+  // 创建空白数据数组
+  const totalRows = Math.ceil(results.length / CARDS_PER_ROW) * (ROWS_PER_CARD + ROW_GAP) + 4;
+  const totalCols = CARDS_PER_ROW * (COLS_PER_CARD + COL_GAP);
+  const data: (string | number | null)[][] = Array.from({ length: totalRows }, () =>
+    Array.from({ length: totalCols }, () => null)
+  );
+
+  // 第0行：方案名 + 算法
+  data[0][0] = `方案: ${schemeName || "未命名"}`;
+  data[0][4] = `算法: ${algoName || "未指定"}`;
+  data[1][0] = `导出时间: ${new Date().toLocaleString("zh-CN")}`;
+
+  const startRow = 3;
+
+  results.forEach((r, idx) => {
+    const rowBlock = Math.floor(idx / CARDS_PER_ROW);
+    const colBlock = idx % CARDS_PER_ROW;
+    const baseRow = startRow + rowBlock * (ROWS_PER_CARD + ROW_GAP);
+    const baseCol = colBlock * (COLS_PER_CARD + COL_GAP);
+
+    const prod = r.production;
+    const res = r.resources;
+    const con = r.constraints;
+    const total = r.totalOutput.A + r.totalOutput.B + r.totalOutput.C + r.totalOutput.D;
+
+    // 标题行
+    data[baseRow][baseCol] = `第${PERIOD_CN[idx]}期`;
+    data[baseRow][baseCol + 1] = "";
+    data[baseRow][baseCol + 2] = "";
+    data[baseRow][baseCol + 3] = "";
+    data[baseRow][baseCol + 4] = "";
+    data[baseRow][baseCol + 5] = allConstraintsSatisfied(con) ? "✓通过" : "✗超限";
+
+    // 表头行
+    const headerRow = baseRow + 1;
+    data[headerRow][baseCol] = "班次";
+    data[headerRow][baseCol + 1] = "第一班";
+    data[headerRow][baseCol + 2] = "一加";
+    data[headerRow][baseCol + 3] = "第二班";
+    data[headerRow][baseCol + 4] = "二加";
+
+    // ABCD 产量行
+    const products = ["A", "B", "C", "D"] as const;
+    const rightLabels = ["本期机器", "本期购买", "期初人数", "最少解雇", "本期解雇", "最大雇佣", "本期雇佣"];
+    const rightValues = [res.machines, res.machinesPurchased, res.initialWorkers, res.minFire, res.fired, res.maxHire, res.hired];
+
+    products.forEach((p, pIdx) => {
+      const row = baseRow + 2 + pIdx;
+      data[row][baseCol] = `${p}产量`;
+      data[row][baseCol + 1] = prod.shift1[p];
+      data[row][baseCol + 2] = prod.ot1[p];
+      data[row][baseCol + 3] = prod.shift2[p];
+      data[row][baseCol + 4] = prod.ot2[p];
+      data[row][baseCol + 5] = rightLabels[pIdx];
+      data[row][baseCol + 6] = rightValues[pIdx];
+    });
+
+    // 可用人数行
+    const wRow = baseRow + 6;
+    data[wRow][baseCol] = "可用人数";
+    data[wRow][baseCol + 1] = Number(con.c1_workersAfterShift1.toFixed(3));
+    data[wRow][baseCol + 2] = Number(con.c2_workersAfterOt1.toFixed(3));
+    data[wRow][baseCol + 3] = "—";
+    data[wRow][baseCol + 4] = Number(con.c4_workersAfterOt2.toFixed(3));
+    data[wRow][baseCol + 5] = rightLabels[4];
+    data[wRow][baseCol + 6] = rightValues[4];
+
+    // 可用机器行
+    const mRow = baseRow + 7;
+    data[mRow][baseCol] = "可用机器";
+    data[mRow][baseCol + 1] = Number(con.c5_machinesAfterShift1.toFixed(3));
+    data[mRow][baseCol + 2] = "—";
+    data[mRow][baseCol + 3] = Number(con.c7_machinesAfterShift2.toFixed(3));
+    data[mRow][baseCol + 4] = Number(con.c8_machinesAfterOt2.toFixed(3));
+    data[mRow][baseCol + 5] = rightLabels[5];
+    data[mRow][baseCol + 6] = rightValues[5];
+
+    // 总产量行
+    const tRow = baseRow + 8;
+    data[tRow][baseCol] = `总产量: ${total}`;
+    data[tRow][baseCol + 1] = `A:${r.totalOutput.A}`;
+    data[tRow][baseCol + 2] = `B:${r.totalOutput.B}`;
+    data[tRow][baseCol + 3] = `C:${r.totalOutput.C}`;
+    data[tRow][baseCol + 4] = `D:${r.totalOutput.D}`;
+    data[tRow][baseCol + 5] = rightLabels[6];
+    data[tRow][baseCol + 6] = rightValues[6];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+
+  // 设置列宽
+  ws["!cols"] = Array.from({ length: totalCols }, (_, i) => {
+    const posInBlock = i % (COLS_PER_CARD + COL_GAP);
+    if (posInBlock === COLS_PER_CARD) return { wch: 2 }; // 间隔列
+    if (posInBlock === 0) return { wch: 10 }; // 班次列
+    if (posInBlock === 5) return { wch: 10 }; // 参数名列
+    if (posInBlock === 6) return { wch: 8 }; // 参数值列
+    return { wch: 9 }; // 数值列
+  });
+
+  XLSX.utils.book_append_sheet(wb, ws, "生产总览");
+  XLSX.writeFile(wb, `生产总览_${schemeName || "排产方案"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
 
 // ============================================================
 // 单期卡片组件（核心：按图片布局）
@@ -267,7 +401,7 @@ interface StatCardProps {
 
 function StatCard({ icon, label, value, sub, accent = "text-foreground" }: StatCardProps) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100 shadow-sm">
+    <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
       <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-50 shrink-0">
         {icon}
       </div>
@@ -286,10 +420,46 @@ function StatCard({ icon, label, value, sub, accent = "text-foreground" }: StatC
 
 export function ProductionOverview() {
   const { config } = useConfig();
-  const [layout, setLayout] = React.useState<2 | 4>(2);
+
+  // 布局状态：从 localStorage 读取，默认 2 列
+  const [layout, setLayout] = React.useState<2 | 4>(() => {
+    try {
+      const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (saved === "4") return 4;
+    } catch { /* ignore */ }
+    return 2;
+  });
+
+  // 切换布局时同时持久化
+  const handleLayoutChange = React.useCallback((newLayout: 2 | 4) => {
+    setLayout(newLayout);
+    try {
+      localStorage.setItem(LAYOUT_STORAGE_KEY, String(newLayout));
+    } catch { /* ignore */ }
+  }, []);
 
   // 从 Simulator 缓存中读取排产数据
   const cachedSim = React.useMemo(() => loadSimCache(), []);
+
+  // 方案名与算法信息
+  const schemeName = React.useMemo(() => {
+    if (cachedSim?.activeDesign?.name) return cachedSim.activeDesign.name;
+    return "";
+  }, [cachedSim]);
+
+  const algorithmId = React.useMemo(() => {
+    // 优先使用方案内置算法，其次使用模拟器当前算法
+    if (cachedSim?.activeDesign?.algorithmId) return cachedSim.activeDesign.algorithmId;
+    if (cachedSim?.algorithmId) return cachedSim.algorithmId;
+    return "balanced";
+  }, [cachedSim]);
+
+  const currentAlgo: AlgorithmProfile = React.useMemo(() => getAlgorithm(algorithmId), [algorithmId]);
+
+  const designSource = React.useMemo(() => {
+    if (cachedSim?.designSource) return cachedSim.designSource;
+    return null;
+  }, [cachedSim]);
 
   const { productions, decisions } = React.useMemo(() => {
     if (cachedSim?.productions && cachedSim?.decisions) {
@@ -349,6 +519,19 @@ export function ProductionOverview() {
     (r) => r.totalOutput.A + r.totalOutput.B + r.totalOutput.C + r.totalOutput.D === maxPeriodOutput
   );
 
+  // Excel 导出
+  const [exporting, setExporting] = React.useState(false);
+  const handleExport = React.useCallback(async () => {
+    setExporting(true);
+    try {
+      await exportToExcel(results, schemeName, currentAlgo.name);
+    } catch (e) {
+      console.error("导出失败", e);
+    } finally {
+      setExporting(false);
+    }
+  }, [results, schemeName, currentAlgo.name]);
+
   // ============================================================
   // 空状态
   // ============================================================
@@ -374,6 +557,50 @@ export function ProductionOverview() {
 
   return (
     <div className="space-y-5">
+      {/* ========== 方案名 + 算法简介 ========== */}
+      <div className="rounded-xl border border-gray-100 bg-gradient-to-r from-white to-slate-50/80 p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+          {/* 方案名 */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 shrink-0">
+              <BookOpen className="size-4 text-blue-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">当前方案</p>
+              <p className="text-sm font-bold text-foreground truncate">
+                {schemeName || "手动排产"}
+                {designSource && (
+                  <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                    ({designSource === "loaded" ? "已加载" : designSource === "market" ? "市场方案" : designSource})
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* 分隔线 */}
+          <div className="hidden sm:block w-px h-8 bg-gray-200" />
+
+          {/* 算法信息 */}
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 shrink-0">
+              <Cpu className="size-4 text-violet-600" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">求解算法</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-foreground">
+                  {currentAlgo.icon} {currentAlgo.name}
+                </span>
+                <span className="text-[11px] text-muted-foreground leading-snug hidden md:inline">
+                  — {currentAlgo.description}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ========== 顶部统计仪表板 ========== */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
@@ -406,8 +633,8 @@ export function ProductionOverview() {
         />
       </div>
 
-      {/* ========== 约束状态 + 布局切换 ========== */}
-      <div className="flex items-center justify-between">
+      {/* ========== 约束状态 + 导出 + 布局切换 ========== */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold text-foreground">8期排产总览</span>
           {allPassed ? (
@@ -422,31 +649,50 @@ export function ProductionOverview() {
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+        <div className="flex items-center gap-2">
+          {/* 导出 Excel 按钮 */}
           <Button
-            variant={layout === 4 ? "default" : "ghost"}
+            variant="outline"
             size="sm"
-            className={`h-7 px-2.5 text-xs gap-1 ${layout === 4 ? "" : "text-muted-foreground"}`}
-            onClick={() => setLayout(4)}
+            className="h-7 px-2.5 text-xs gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+            onClick={handleExport}
+            disabled={exporting}
           >
-            <LayoutGrid className="size-3" />
-            4列
+            {exporting ? (
+              <Download className="size-3 animate-bounce" />
+            ) : (
+              <FileSpreadsheet className="size-3" />
+            )}
+            {exporting ? "导出中..." : "导出Excel"}
           </Button>
-          <Button
-            variant={layout === 2 ? "default" : "ghost"}
-            size="sm"
-            className={`h-7 px-2.5 text-xs gap-1 ${layout === 2 ? "" : "text-muted-foreground"}`}
-            onClick={() => setLayout(2)}
-          >
-            <Rows3 className="size-3" />
-            2列
-          </Button>
+
+          {/* 布局切换 */}
+          <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+            <Button
+              variant={layout === 4 ? "default" : "ghost"}
+              size="sm"
+              className={`h-7 px-2.5 text-xs gap-1 ${layout === 4 ? "" : "text-muted-foreground"}`}
+              onClick={() => handleLayoutChange(4)}
+            >
+              <LayoutGrid className="size-3" />
+              4列
+            </Button>
+            <Button
+              variant={layout === 2 ? "default" : "ghost"}
+              size="sm"
+              className={`h-7 px-2.5 text-xs gap-1 ${layout === 2 ? "" : "text-muted-foreground"}`}
+              onClick={() => handleLayoutChange(2)}
+            >
+              <Rows3 className="size-3" />
+              2列
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* ========== 8期卡片网格 ========== */}
       <div className={`grid gap-3 ${
-        layout === 4 ? "grid-cols-1 md:grid-cols-2 2xl:grid-cols-4" : "grid-cols-1 xl:grid-cols-2"
+        layout === 4 ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4" : "grid-cols-1 xl:grid-cols-2"
       }`}>
         {results.map((result, idx) => (
           <PeriodTableCard

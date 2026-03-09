@@ -1,9 +1,9 @@
 # AI 恢复文档 — ibiz-platform 前端
 
 ## 当前状态
-- **阶段**：阶段十一完成（三档求解算法实现）
+- **阶段**：阶段十二完成（均衡排产优化 + 二加求解优先级 + 剪贴板导入）
 - **Manus 项目名**：ibiz-sim
-- **最新 Manus 检查点**：`0c602c21`
+- **最新 Manus 检查点**：`85171c67`
 - **技术栈**：React 19 + Tailwind 4 + shadcn/ui + wouter + Vite
 
 ## 恢复步骤
@@ -18,12 +18,14 @@
 1. Landing 页面（导航栏、Hero、功能特性、使用流程、页脚）
 2. 登录/注册/管理员登录 + AuthContext 认证体系
 3. 用户仪表盘框架（DashboardLayout + AppSidebar + AppHeader）
-4. 全局配置页面（产品规格参数 ABCD）
+4. 全局配置页面（产品规格参数 ABCD + 剪贴板导入）
 5. 生产模拟器（计算引擎驱动，6 约束检查点，8 期排产，一键最优）
 6. 方案设计器（1-8 期产量/雇佣/机器购买配置，localStorage 持久化）
 7. 我的方案 + 方案市场 + 管理后台
 8. UI 优化：首页标题、侧边栏动画流畅度、页面切换闪烁修复
-9. 三档求解算法（快速/标准/探索）：加权贪心、全局ILP、模拟退火，操作栏三按钮切换
+9. 三档求解算法（均衡排产/极限利用/智能混合）：Round-Robin + 尾部优化 + 均衡排产后处理
+10. 均衡排产优化：每期 A/B 和 C/D 产品对自动均衡微调
+11. 二加产量求解优先级：机器系数优先最小，其次可用人数最小
 
 ## P0 待完成
 - 方案设计器与模拟器联动（设计 → 模拟 → 验证闭环）
@@ -36,9 +38,12 @@
 - `client/src/components/AppSidebar.tsx` — 侧边栏导航
 - `client/src/components/production/Simulator.tsx` — 生产模拟器
 - `client/src/components/production/Designer.tsx` — 方案设计器
-- `client/src/lib/productionEngine.ts` — 计算引擎
+- `client/src/lib/solver.ts` — 求解算法（含均衡排产后处理）
+- `client/src/lib/algorithms.ts` — 三档算法配置和详情描述
+- `client/src/lib/engine.ts` — 计算引擎
 - `client/src/lib/ConfigContext.tsx` — 全局配置上下文
 - `client/src/lib/DesignPlanContext.tsx` — 方案设计上下文
+- `client/src/pages/GlobalConfig.tsx` — 全局配置页面（含剪贴板导入）
 
 ## 备份规则
 每个阶段结束后必须：

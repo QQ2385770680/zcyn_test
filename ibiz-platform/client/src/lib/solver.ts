@@ -8,7 +8,11 @@
  *    - shift1 → 让 C5（一班可用机器）最小
  *    - shift2 → 让 C1（一班可用人数）最小
  *    - ot1    → 让 C7（二班可用机器）最小
- *    - ot2    → 让 C8（二加可用机器）最小
+ *    - ot2    → 让 C8（二加可用机器）最小，机器系数优先最小，其次可用人数最小
+ *
+ * 1.5. 均衡排产后处理：
+ *    - 让每期 A产总和与B产总和差异尽量小
+ *    - 让每期 C产总和与D产总和差异尽量小
  *
  * 2. 机器购买求解（range 模式）：
  *    - 第N期购买 → 目标让第N+2期的一班可用人数和一班二班二加可用机器最小
@@ -539,6 +543,133 @@ function optimizeSmartMix(
 }
 
 // ============================================================
+// 均衡排产后处理：A/B 均衡 + C/D 均衡
+// ============================================================
+
+/**
+ * 计算单期各产品的总产量（四个班次之和）
+ */
+function calcPeriodProductTotals(
+  production: PeriodProduction,
+): Record<ProductKey, number> {
+  const totals: Record<ProductKey, number> = { A: 0, B: 0, C: 0, D: 0 };
+  for (const p of PRODUCTS) {
+    totals[p] = production.shift1[p] + production.ot1[p] + production.shift2[p] + production.ot2[p];
+  }
+  return totals;
+}
+
+/**
+ * 均衡排产后处理：让每期 A产总和与B产总和差异尽量小，C产总和与D产总和差异尽量小
+ *
+ * 算法思路：
+ * 对于 (A,B) 和 (C,D) 两对产品，如果一对中某个产品的总产量明显高于另一个，
+ * 尝试在各班次中将多的产品减少 1、少的产品增加 1，前提是：
+ *   1. 调整后所有约束仍然满足（C1/C2/C4/C5/C7/C8 >= 0）
+ *   2. 被调整的单元格不是 blank 或 fixed 模式
+ *   3. 被调整的单元格在 rangeMin ~ rangeMax 范围内
+ *
+ * 每次只调整 1 个单位，反复迭代直到差异为 0 或无法再调整。
+ */
+function balanceProductPairs(
+  production: PeriodProduction,
+  resources: PeriodResources,
+  config: GlobalConfig,
+  period: number,
+  designConfig?: DesignPlanConfig | null,
+): PeriodProduction {
+  const products = config.products;
+  const shifts: ShiftKey[] = ["shift1", "ot1", "shift2", "ot2"];
+
+  // 获取每个单元格的配置信息（用于检查 mode 和 range）
+  const cellInfoMap: Record<string, CellInfo> = {};
+  for (const shift of shifts) {
+    for (const product of PRODUCTS) {
+      const key = `${shift}_${product}`;
+      cellInfoMap[key] = getCellInfo(product, shift, period, config, designConfig);
+    }
+  }
+
+  /** 检查某个单元格是否可调整 */
+  function canAdjust(shift: ShiftKey, product: ProductKey): boolean {
+    const info = cellInfoMap[`${shift}_${product}`];
+    return info.mode !== "blank" && info.mode !== "fixed";
+  }
+
+  /** 检查产量是否在允许范围内 */
+  function inRange(shift: ShiftKey, product: ProductKey, qty: number): boolean {
+    const info = cellInfoMap[`${shift}_${product}`];
+    if (info.mode === "required") {
+      return qty >= info.rangeMin && qty <= info.rangeMax;
+    }
+    return qty >= 0 && qty <= info.rangeMax;
+  }
+
+  /** 检查所有约束是否满足 */
+  function constraintsSatisfied(prod: PeriodProduction): boolean {
+    const cs = calcConstraints(prod, resources, products);
+    return (
+      cs.c1_workersAfterShift1 >= -0.001 &&
+      cs.c2_workersAfterOt1 >= -0.001 &&
+      cs.c4_workersAfterOt2 >= -0.001 &&
+      cs.c5_machinesAfterShift1 >= -0.001 &&
+      cs.c7_machinesAfterShift2 >= -0.001 &&
+      cs.c8_machinesAfterOt2 >= -0.001
+    );
+  }
+
+  // 对 (A,B) 和 (C,D) 两对产品分别做均衡
+  const pairs: [ProductKey, ProductKey][] = [["A", "B"], ["C", "D"]];
+
+  for (const [pHigh, pLow] of pairs) {
+    let maxIter = 200; // 防止死循环
+    while (maxIter-- > 0) {
+      const totals = calcPeriodProductTotals(production);
+      const diff = totals[pHigh] - totals[pLow];
+
+      // 差异 <= 0 说明已经均衡或反向了，换方向检查
+      let from: ProductKey, to: ProductKey;
+      if (Math.abs(diff) <= 0) break; // 完全均衡
+      if (diff > 0) {
+        from = pHigh; to = pLow;
+      } else {
+        from = pLow; to = pHigh;
+      }
+
+      // 尝试在各班次中找到一个可以 from-1, to+1 的位置
+      let adjusted = false;
+      for (const shift of shifts) {
+        if (!canAdjust(shift, from) || !canAdjust(shift, to)) continue;
+        if (production[shift][from] <= 0) continue;
+
+        const newFromQty = production[shift][from] - 1;
+        const newToQty = production[shift][to] + 1;
+
+        if (!inRange(shift, from, newFromQty) || !inRange(shift, to, newToQty)) continue;
+
+        // 试探性修改
+        const saved = { from: production[shift][from], to: production[shift][to] };
+        production[shift][from] = newFromQty;
+        production[shift][to] = newToQty;
+
+        if (constraintsSatisfied(production)) {
+          adjusted = true;
+          break; // 成功调整一步，继续下一轮迭代
+        } else {
+          // 回滚
+          production[shift][from] = saved.from;
+          production[shift][to] = saved.to;
+        }
+      }
+
+      if (!adjusted) break; // 所有班次都无法调整，退出
+    }
+  }
+
+  return production;
+}
+
+// ============================================================
 // 产量求解（第二层）
 // ============================================================
 
@@ -673,7 +804,7 @@ function solvePeriodProduction(
     }
   }
 
-  // ---- Step 4: ot2（二加）→ 让 C8（二加可用机器）最小 ----
+  // ---- Step 4: ot2（二加）→ 让 C8（二加可用机器）最小，机器系数优先最小，其次可用人数最小 ----
   {
     const cells = getShiftCells("ot2", period, config, designConfig);
     const allocated = allocateRoundRobin(
@@ -694,6 +825,11 @@ function solvePeriodProduction(
       production.ot2[p] = final[p];
     }
   }
+
+  // ---- Step 5: 均衡排产后处理 ----
+  // 让每期 A产总和与B产总和差异尽量小，C产总和与D产总和差异尽量小
+  // 通过在各班次之间微调产品对的产量，在约束满足的前提下实现均衡
+  balanceProductPairs(production, resources, config, period, designConfig);
 
   return production;
 }

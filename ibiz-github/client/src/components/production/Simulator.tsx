@@ -837,14 +837,14 @@ export function ProductionSimulator() {
         ))}
       </div>
 
-      {/* ===== 8期全局总览 ===== */}
+      {/* ===== 8期生产总览 ===== */}
       <Card className="border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/20">
         <CardContent className="p-4 space-y-4">
           {/* 标题栏 + 布局切换 */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <BarChart3 className="size-4 text-emerald-600" />
-              <span className="text-sm font-semibold text-foreground">8期全局总览</span>
+              <span className="text-sm font-semibold text-foreground">8期生产总览</span>
               <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-emerald-50 text-emerald-700 border-emerald-200">
                 {passCount}/{results.length} 通过
               </Badge>

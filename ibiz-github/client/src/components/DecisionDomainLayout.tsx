@@ -1,6 +1,6 @@
 /**
  * DecisionDomainLayout — 决策域通用布局
- * 四个标签页：全局总览、生产模拟、方案设计、我的方案
+ * 四个标签页：生产模拟、生产总览、方案设计、我的方案
  * 设计风格：方案B — 胶囊按钮组 + 图标
  * 选中项为翠绿色填充胶囊（白色文字+图标），未选中项为透明底+灰色文字
  */
@@ -22,8 +22,8 @@ interface DecisionDomainLayoutProps {
 }
 
 const tabItems = [
-  { value: "overview", label: "全局总览", icon: LayoutDashboard },
   { value: "simulator", label: "生产模拟", icon: Factory },
+  { value: "overview", label: "生产总览", icon: LayoutDashboard },
   { value: "designer", label: "方案设计", icon: Target },
   { value: "plans", label: "我的方案", icon: FolderOpen },
 ] as const;
@@ -45,8 +45,8 @@ export function DecisionDomainLayout({
     if (location.endsWith("/designer")) return "designer";
     if (location.endsWith("/plans")) return "plans";
     if (location.endsWith("/simulator")) return "simulator";
-    // 默认显示全局总览
-    return "overview";
+    // 默认显示生产模拟
+    return "simulator";
   };
 
   const activeTab = getActiveTab();

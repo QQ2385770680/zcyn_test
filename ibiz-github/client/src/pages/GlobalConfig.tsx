@@ -30,6 +30,27 @@ export default function GlobalConfig() {
   const { config, updateConfig, isDirty } = useConfig();
   const [showSaved, setShowSaved] = React.useState(false);
 
+  // 输入框字符串 state：允许用户删空再输入，避免无法删除0的问题
+  // key: `${productIndex}-${field}` => string
+  const [inputStrings, setInputStrings] = React.useState<Record<string, string>>({});
+
+  const getInputValue = (index: number, field: string, realValue: number | string) => {
+    const key = `${index}-${field}`;
+    return key in inputStrings ? inputStrings[key] : String(realValue);
+  };
+
+  const setInputString = (index: number, field: string, value: string) => {
+    setInputStrings(prev => ({ ...prev, [`${index}-${field}`]: value }));
+  };
+
+  const clearInputString = (index: number, field: string) => {
+    setInputStrings(prev => {
+      const next = { ...prev };
+      delete next[`${index}-${field}`];
+      return next;
+    });
+  };
+
   // 更新产品规格（仅更新本地状态，不立即保存）
   const updateProduct = (index: number, field: keyof ProductSpec, value: number) => {
     const newProducts = [...config.products];
@@ -186,8 +207,26 @@ export default function GlobalConfig() {
                         {row.editable && row.field ? (
                           <Input
                             type="number"
-                            value={row.getValue(product)}
-                            onChange={(e) => updateProduct(index, row.field!, parseInt(e.target.value) || 0)}
+                            value={getInputValue(index, row.field!, row.getValue(product))}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              setInputString(index, row.field!, raw);
+                              const parsed = parseInt(raw);
+                              if (!isNaN(parsed)) {
+                                updateProduct(index, row.field!, parsed);
+                              }
+                            }}
+                            onBlur={() => {
+                              const key = `${index}-${row.field!}`;
+                              const raw = inputStrings[key];
+                              if (raw === undefined) return;
+                              const parsed = parseInt(raw);
+                              const minVal = row.field === "rawMaterial" ? 0 : 1;
+                              if (isNaN(parsed) || parsed < minVal) {
+                                updateProduct(index, row.field!, minVal);
+                              }
+                              clearInputString(index, row.field!);
+                            }}
                             className="w-24 mx-auto text-center h-8 text-sm"
                             min={row.field === "rawMaterial" ? 0 : 1}
                           />

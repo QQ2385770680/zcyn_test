@@ -130,18 +130,18 @@ export function AppSidebar() {
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton
-                          isActive={location === "/production/overview"}
-                          onClick={() => navigate("/production/overview")}
-                        >
-                          <span>全局总览</span>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
                           isActive={location === "/production/simulator"}
                           onClick={() => navigate("/production/simulator")}
                         >
                           <span>生产模拟</span>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={location === "/production/overview"}
+                          onClick={() => navigate("/production/overview")}
+                        >
+                          <span>生产总览</span>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>

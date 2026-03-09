@@ -1,7 +1,7 @@
 /**
  * Production — 生产决策域
  * 设计风格：清新简洁，延续 wuushuang.com
- * 包含四个标签页：全局总览、生产模拟、方案设计、我的方案
+ * 包含四个标签页：生产模拟、生产总览、方案设计、我的方案
  */
 import { DecisionDomainLayout } from "@/components/DecisionDomainLayout";
 import { Factory } from "lucide-react";

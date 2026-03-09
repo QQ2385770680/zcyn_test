@@ -1,11 +1,13 @@
 /**
  * DecisionDomainLayout — 决策域通用布局
  * 每个决策域包含三个标签页：生产模拟、方案设计、我的方案
- * 注意：nest 模式下 useLocation 返回相对路径
+ * 设计风格：方案B — 胶囊按钮组 + 图标
+ * 选中项为翠绿色填充胶囊（白色文字+图标），未选中项为透明底+灰色文字
  */
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useLocation } from "wouter";
 import React, { useTransition } from "react";
+import { Factory, Target, FolderOpen } from "lucide-react";
 
 interface DecisionDomainLayoutProps {
   title: string;
@@ -18,6 +20,12 @@ interface DecisionDomainLayoutProps {
   accentColor?: string;
 }
 
+const tabItems = [
+  { value: "simulator", label: "生产模拟", icon: Factory },
+  { value: "designer", label: "方案设计", icon: Target },
+  { value: "plans", label: "我的方案", icon: FolderOpen },
+] as const;
+
 export function DecisionDomainLayout({
   title,
   description,
@@ -29,13 +37,13 @@ export function DecisionDomainLayout({
 }: DecisionDomainLayoutProps) {
   const [location, setLocation] = useLocation();
 
-  // Determine active tab from URL
   const getActiveTab = () => {
     if (location.endsWith("/designer")) return "designer";
     if (location.endsWith("/plans")) return "plans";
     return "simulator";
   };
 
+  const activeTab = getActiveTab();
   const [isPending, startTransition] = useTransition();
 
   const handleTabChange = (value: string) => {
@@ -58,19 +66,31 @@ export function DecisionDomainLayout({
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={getActiveTab()} onValueChange={handleTabChange}>
-        <TabsList className="bg-gray-100/80">
-          <TabsTrigger value="simulator" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            生产模拟
-          </TabsTrigger>
-          <TabsTrigger value="designer" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            方案设计
-          </TabsTrigger>
-          <TabsTrigger value="plans" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
-            我的方案
-          </TabsTrigger>
-        </TabsList>
+      {/* Pill Tab Navigation */}
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <div className="flex items-center gap-1.5 rounded-xl border border-gray-200/80 bg-gray-50/60 p-1.5 w-fit">
+          {tabItems.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.value;
+            return (
+              <button
+                key={tab.value}
+                onClick={() => handleTabChange(tab.value)}
+                className={`
+                  relative flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium
+                  transition-all duration-200 ease-out
+                  ${isActive
+                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-white/80"
+                  }
+                `}
+              >
+                <Icon className={`size-4 ${isActive ? "text-white" : "text-gray-400"} transition-colors duration-200`} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
 
         <div className={`mt-4 transition-opacity duration-150 ${isPending ? 'opacity-60' : 'opacity-100'}`}>
           <TabsContent value="simulator" className="mt-0">

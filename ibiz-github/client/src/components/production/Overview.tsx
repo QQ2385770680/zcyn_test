@@ -85,120 +85,336 @@ const PERIOD_CN = ["一", "二", "三", "四", "五", "六", "七", "八"];
 // ============================================================
 
 async function exportToExcel(results: PeriodResult[], schemeName: string, algoName: string) {
-  const XLSX = await import("xlsx");
-  const wb = XLSX.utils.book_new();
+  const ExcelJS = await import("exceljs");
+  const { saveAs } = await import("file-saver");
 
-  // 每期卡片占 10 行 × 7 列，一行4列排列，列间隔1列
-  // 行布局：标题1行 + 表头1行 + ABCD 4行 + 可用人数1行 + 可用机器1行 + 总产量1行 + 空行1行 = 10行
-  // 列布局：每期 7列（班次 + 4班次 + 参数名 + 参数值），间隔1列 = 8列/期
-  const COLS_PER_CARD = 7;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "iBizSim 智能决策系统";
+  wb.created = new Date();
+  const ws = wb.addWorksheet("生产总览", {
+    views: [{ state: "frozen", ySplit: 3, xSplit: 0 }],
+  });
+
+  // ============ 样式常量 ============
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const THIN_BORDER: any = {
+    top: { style: "thin", color: { argb: "FFB0B0B0" } },
+    left: { style: "thin", color: { argb: "FFB0B0B0" } },
+    bottom: { style: "thin", color: { argb: "FFB0B0B0" } },
+    right: { style: "thin", color: { argb: "FFB0B0B0" } },
+  };
+  const THICK_BORDER_BOTTOM: any = {
+    ...THIN_BORDER,
+    bottom: { style: "medium", color: { argb: "FF333333" } },
+  };
+
+  const FILL_TITLE_PASS: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2563EB" } };
+  const FILL_TITLE_FAIL: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDC2626" } };
+  const FILL_HEADER: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+  const FILL_PARAM_LABEL: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
+  const FILL_PARAM_BLUE: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
+  const FILL_PARAM_AMBER: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+  const FILL_SUMMARY: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFBEB" } };
+  const FILL_CONSTRAINT_GREEN: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD1FAE5" } };
+  const FILL_CONSTRAINT_YELLOW: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF9C3" } };
+  const FILL_CONSTRAINT_RED: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+  const FILL_CONSTRAINT_ROW: any = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0F9FF" } };
+
+  const FONT_TITLE: any = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+  const FONT_HEADER: any = { bold: true, size: 10, color: { argb: "FF475569" } };
+  const FONT_NORMAL: any = { size: 10, color: { argb: "FF1E293B" } };
+  const FONT_LABEL: any = { size: 9, color: { argb: "FF64748B" } };
+  const FONT_BOLD: any = { bold: true, size: 10, color: { argb: "FF1E293B" } };
+  const FONT_BLUE_BOLD: any = { bold: true, size: 11, color: { argb: "FF1D4ED8" } };
+  const FONT_AMBER_BOLD: any = { bold: true, size: 11, color: { argb: "FFB45309" } };
+  const FONT_GREEN: any = { bold: true, size: 10, color: { argb: "FF059669" } };
+  const FONT_YELLOW: any = { bold: true, size: 10, color: { argb: "FFD97706" } };
+  const FONT_RED: any = { bold: true, size: 10, color: { argb: "FFDC2626" } };
+
+  const ALIGN_CENTER: any = { horizontal: "center", vertical: "middle" };
+  const ALIGN_RIGHT: any = { horizontal: "right", vertical: "middle" };
+  const ALIGN_LEFT: any = { horizontal: "left", vertical: "middle" };
+
+  // ============ 布局常量 ============
+  const COLS_PER_CARD = 7; // 班次标签 + 4班次 + 参数名 + 参数值
   const COL_GAP = 1;
-  const ROWS_PER_CARD = 10;
-  const ROW_GAP = 1;
+  const ROWS_PER_CARD = 10; // 标题1 + 表头1 + ABCD 4 + 可用人数1 + 可用机器1 + 汇总1 + 空行1
   const CARDS_PER_ROW = 4;
 
-  // 创建空白数据数组
-  const totalRows = Math.ceil(results.length / CARDS_PER_ROW) * (ROWS_PER_CARD + ROW_GAP) + 4;
+  // ============ 第1-3行：全局信息 ============
+  const totalOutput = results.reduce((s, r) => s + r.totalOutput.A + r.totalOutput.B + r.totalOutput.C + r.totalOutput.D, 0);
+  const totalA = results.reduce((s, r) => s + r.totalOutput.A, 0);
+  const totalB = results.reduce((s, r) => s + r.totalOutput.B, 0);
+  const totalC = results.reduce((s, r) => s + r.totalOutput.C, 0);
+  const totalD = results.reduce((s, r) => s + r.totalOutput.D, 0);
+  const passCount = results.filter(r => allConstraintsSatisfied(r.constraints)).length;
+
+  // Row 1: 标题
+  ws.mergeCells(1, 1, 1, 14);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = `iBizSim 生产总览 — ${schemeName || "未命名方案"}`;
+  titleCell.font = { bold: true, size: 14, color: { argb: "FF1E3A5F" } };
+  titleCell.alignment = { horizontal: "left", vertical: "middle" };
+  ws.getRow(1).height = 28;
+
+  // Row 2: 方案 + 算法 + 统计
+  ws.getCell(2, 1).value = `求解算法: ${algoName || "未指定"}`;
+  ws.getCell(2, 1).font = { size: 10, color: { argb: "FF475569" } };
+  ws.getCell(2, 8).value = `8期总产量: ${totalOutput} (A:${totalA} B:${totalB} C:${totalC} D:${totalD})`;
+  ws.getCell(2, 8).font = { size: 10, bold: true, color: { argb: "FF1D4ED8" } };
+  ws.getCell(2, 20).value = `约束通过: ${passCount}/${results.length}`;
+  ws.getCell(2, 20).font = { size: 10, color: passCount === results.length ? { argb: "FF059669" } : { argb: "FFDC2626" } };
+  ws.getRow(2).height = 20;
+
+  // Row 3: 导出时间
+  ws.getCell(3, 1).value = `导出时间: ${new Date().toLocaleString("zh-CN")}`;
+  ws.getCell(3, 1).font = { size: 9, italic: true, color: { argb: "FF94A3B8" } };
+  ws.getRow(3).height = 18;
+
+  // ============ 辅助函数 ============
+  function getConstraintFill(value: number): any {
+    if (value < -0.001) return FILL_CONSTRAINT_RED;
+    if (value <= 5) return FILL_CONSTRAINT_GREEN;
+    return FILL_CONSTRAINT_YELLOW;
+  }
+  function getConstraintFont(value: number): any {
+    if (value < -0.001) return FONT_RED;
+    if (value <= 5) return FONT_GREEN;
+    return FONT_YELLOW;
+  }
+
+  function setCell(
+    row: number, col: number,
+    value: string | number,
+    opts?: {
+      font?: any;
+      fill?: any;
+      alignment?: any;
+      border?: any;
+      numFmt?: string;
+    }
+  ) {
+    const cell = ws.getCell(row, col);
+    cell.value = value;
+    if (opts?.font) cell.font = opts.font;
+    if (opts?.fill) cell.fill = opts.fill;
+    if (opts?.alignment) cell.alignment = opts.alignment;
+    if (opts?.border) cell.border = opts.border;
+    if (opts?.numFmt) cell.numFmt = opts.numFmt;
+  }
+
+  // ============ 设置列宽 ============
   const totalCols = CARDS_PER_ROW * (COLS_PER_CARD + COL_GAP);
-  const data: (string | number | null)[][] = Array.from({ length: totalRows }, () =>
-    Array.from({ length: totalCols }, () => null)
-  );
+  for (let i = 1; i <= totalCols; i++) {
+    const posInBlock = (i - 1) % (COLS_PER_CARD + COL_GAP);
+    if (posInBlock === COLS_PER_CARD) {
+      ws.getColumn(i).width = 2; // 间隔列
+    } else if (posInBlock === 0) {
+      ws.getColumn(i).width = 10; // 班次标签列
+    } else if (posInBlock === 5) {
+      ws.getColumn(i).width = 10; // 参数名列
+    } else if (posInBlock === 6) {
+      ws.getColumn(i).width = 10; // 参数值列
+    } else {
+      ws.getColumn(i).width = 10; // 数值列
+    }
+  }
 
-  // 第0行：方案名 + 算法
-  data[0][0] = `方案: ${schemeName || "未命名"}`;
-  data[0][4] = `算法: ${algoName || "未指定"}`;
-  data[1][0] = `导出时间: ${new Date().toLocaleString("zh-CN")}`;
-
-  const startRow = 3;
+  // ============ 写入每期卡片 ============
+  const START_ROW = 5; // 从第5行开始
 
   results.forEach((r, idx) => {
     const rowBlock = Math.floor(idx / CARDS_PER_ROW);
     const colBlock = idx % CARDS_PER_ROW;
-    const baseRow = startRow + rowBlock * (ROWS_PER_CARD + ROW_GAP);
-    const baseCol = colBlock * (COLS_PER_CARD + COL_GAP);
+    const baseRow = START_ROW + rowBlock * ROWS_PER_CARD;
+    const baseCol = 1 + colBlock * (COLS_PER_CARD + COL_GAP);
 
     const prod = r.production;
     const res = r.resources;
     const con = r.constraints;
+    const passed = allConstraintsSatisfied(con);
     const total = r.totalOutput.A + r.totalOutput.B + r.totalOutput.C + r.totalOutput.D;
 
-    // 标题行
-    data[baseRow][baseCol] = `第${PERIOD_CN[idx]}期`;
-    data[baseRow][baseCol + 1] = "";
-    data[baseRow][baseCol + 2] = "";
-    data[baseRow][baseCol + 3] = "";
-    data[baseRow][baseCol + 4] = "";
-    data[baseRow][baseCol + 5] = allConstraintsSatisfied(con) ? "✓通过" : "✗超限";
+    // --- 标题行（合并7列） ---
+    ws.mergeCells(baseRow, baseCol, baseRow, baseCol + 4);
+    setCell(baseRow, baseCol, `第${PERIOD_CN[idx]}期`, {
+      font: FONT_TITLE,
+      fill: passed ? FILL_TITLE_PASS : FILL_TITLE_FAIL,
+      alignment: ALIGN_CENTER,
+      border: THIN_BORDER,
+    });
+    setCell(baseRow, baseCol + 5, passed ? "✓ 通过" : "✗ 超限", {
+      font: { bold: true, size: 10, color: { argb: "FFFFFFFF" } },
+      fill: passed ? FILL_TITLE_PASS : FILL_TITLE_FAIL,
+      alignment: ALIGN_CENTER,
+      border: THIN_BORDER,
+    });
+    setCell(baseRow, baseCol + 6, "", {
+      fill: passed ? FILL_TITLE_PASS : FILL_TITLE_FAIL,
+      border: THIN_BORDER,
+    });
+    ws.getRow(baseRow).height = 22;
 
-    // 表头行
-    const headerRow = baseRow + 1;
-    data[headerRow][baseCol] = "班次";
-    data[headerRow][baseCol + 1] = "第一班";
-    data[headerRow][baseCol + 2] = "一加";
-    data[headerRow][baseCol + 3] = "第二班";
-    data[headerRow][baseCol + 4] = "二加";
+    // --- 表头行 ---
+    const hRow = baseRow + 1;
+    const headers = ["班次", "第一班", "一加", "第二班", "二加"];
+    headers.forEach((h, hi) => {
+      setCell(hRow, baseCol + hi, h, {
+        font: FONT_HEADER,
+        fill: FILL_HEADER,
+        alignment: hi === 0 ? ALIGN_LEFT : ALIGN_CENTER,
+        border: THICK_BORDER_BOTTOM,
+      });
+    });
+    // 右侧表头留空但有样式
+    setCell(hRow, baseCol + 5, "", { fill: FILL_HEADER, border: THICK_BORDER_BOTTOM });
+    setCell(hRow, baseCol + 6, "", { fill: FILL_HEADER, border: THICK_BORDER_BOTTOM });
 
-    // ABCD 产量行
+    // --- ABCD 产量行 ---
     const products = ["A", "B", "C", "D"] as const;
     const rightLabels = ["本期机器", "本期购买", "期初人数", "最少解雇", "本期解雇", "最大雇佣", "本期雇佣"];
-    const rightValues = [res.machines, res.machinesPurchased, res.initialWorkers, res.minFire, res.fired, res.maxHire, res.hired];
+    const rightValues: number[] = [res.machines, res.machinesPurchased, res.initialWorkers, res.minFire, res.fired, res.maxHire, res.hired];
+    const rightHighlight = ["blue", null, "amber", null, null, null, null];
 
     products.forEach((p, pIdx) => {
       const row = baseRow + 2 + pIdx;
-      data[row][baseCol] = `${p}产量`;
-      data[row][baseCol + 1] = prod.shift1[p];
-      data[row][baseCol + 2] = prod.ot1[p];
-      data[row][baseCol + 3] = prod.shift2[p];
-      data[row][baseCol + 4] = prod.ot2[p];
-      data[row][baseCol + 5] = rightLabels[pIdx];
-      data[row][baseCol + 6] = rightValues[pIdx];
+      const isEven = pIdx % 2 === 0;
+      const rowFill: any = isEven ? undefined : { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8FAFC" } };
+
+      setCell(row, baseCol, `${p}产量`, {
+        font: FONT_BOLD,
+        fill: rowFill,
+        alignment: ALIGN_LEFT,
+        border: THIN_BORDER,
+      });
+
+      // 4个班次数值
+      const vals = [prod.shift1[p], prod.ot1[p], prod.shift2[p], prod.ot2[p]];
+      vals.forEach((v, vi) => {
+        const hasOutput = v > 0;
+        setCell(row, baseCol + 1 + vi, v, {
+          font: hasOutput ? { bold: true, size: 10, color: { argb: "FF166534" } } : FONT_NORMAL,
+          fill: hasOutput ? { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } } : rowFill,
+          alignment: ALIGN_CENTER,
+          border: THIN_BORDER,
+        });
+      });
+
+      // 右侧参数
+      setCell(row, baseCol + 5, rightLabels[pIdx], {
+        font: FONT_LABEL,
+        fill: FILL_PARAM_LABEL,
+        alignment: ALIGN_RIGHT,
+        border: THIN_BORDER,
+      });
+
+      const rh = rightHighlight[pIdx];
+      setCell(row, baseCol + 6, rightValues[pIdx], {
+        font: rh === "blue" ? FONT_BLUE_BOLD : rh === "amber" ? FONT_AMBER_BOLD : FONT_BOLD,
+        fill: rh === "blue" ? FILL_PARAM_BLUE : rh === "amber" ? FILL_PARAM_AMBER : undefined,
+        alignment: ALIGN_CENTER,
+        border: THIN_BORDER,
+      });
     });
 
-    // 可用人数行
+    // --- 可用人数行 ---
     const wRow = baseRow + 6;
-    data[wRow][baseCol] = "可用人数";
-    data[wRow][baseCol + 1] = Number(con.c1_workersAfterShift1.toFixed(3));
-    data[wRow][baseCol + 2] = Number(con.c2_workersAfterOt1.toFixed(3));
-    data[wRow][baseCol + 3] = "—";
-    data[wRow][baseCol + 4] = Number(con.c4_workersAfterOt2.toFixed(3));
-    data[wRow][baseCol + 5] = rightLabels[4];
-    data[wRow][baseCol + 6] = rightValues[4];
+    setCell(wRow, baseCol, "可用人数", {
+      font: { bold: true, size: 10, color: { argb: "FF1D4ED8" } },
+      fill: FILL_CONSTRAINT_ROW,
+      alignment: ALIGN_LEFT,
+      border: THIN_BORDER,
+    });
+    const workerVals = [
+      { val: con.c1_workersAfterShift1, show: true },
+      { val: con.c2_workersAfterOt1, show: true },
+      { val: 0, show: false },
+      { val: con.c4_workersAfterOt2, show: true },
+    ];
+    workerVals.forEach((item, i) => {
+      if (item.show) {
+        setCell(wRow, baseCol + 1 + i, Number(item.val.toFixed(3)), {
+          font: getConstraintFont(item.val),
+          fill: getConstraintFill(item.val),
+          alignment: ALIGN_CENTER,
+          border: THIN_BORDER,
+          numFmt: "0.000",
+        });
+      } else {
+        setCell(wRow, baseCol + 1 + i, "—", {
+          font: { size: 10, color: { argb: "FFC0C0C0" } },
+          fill: FILL_CONSTRAINT_ROW,
+          alignment: ALIGN_CENTER,
+          border: THIN_BORDER,
+        });
+      }
+    });
+    // 右侧：本期解雇
+    setCell(wRow, baseCol + 5, rightLabels[4], { font: FONT_LABEL, fill: FILL_PARAM_LABEL, alignment: ALIGN_RIGHT, border: THIN_BORDER });
+    setCell(wRow, baseCol + 6, rightValues[4], { font: FONT_BOLD, alignment: ALIGN_CENTER, border: THIN_BORDER });
 
-    // 可用机器行
+    // --- 可用机器行 ---
     const mRow = baseRow + 7;
-    data[mRow][baseCol] = "可用机器";
-    data[mRow][baseCol + 1] = Number(con.c5_machinesAfterShift1.toFixed(3));
-    data[mRow][baseCol + 2] = "—";
-    data[mRow][baseCol + 3] = Number(con.c7_machinesAfterShift2.toFixed(3));
-    data[mRow][baseCol + 4] = Number(con.c8_machinesAfterOt2.toFixed(3));
-    data[mRow][baseCol + 5] = rightLabels[5];
-    data[mRow][baseCol + 6] = rightValues[5];
+    setCell(mRow, baseCol, "可用机器", {
+      font: { bold: true, size: 10, color: { argb: "FF1D4ED8" } },
+      fill: FILL_CONSTRAINT_ROW,
+      alignment: ALIGN_LEFT,
+      border: THIN_BORDER,
+    });
+    const machineVals = [
+      { val: con.c5_machinesAfterShift1, show: true },
+      { val: 0, show: false },
+      { val: con.c7_machinesAfterShift2, show: true },
+      { val: con.c8_machinesAfterOt2, show: true },
+    ];
+    machineVals.forEach((item, i) => {
+      if (item.show) {
+        setCell(mRow, baseCol + 1 + i, Number(item.val.toFixed(3)), {
+          font: getConstraintFont(item.val),
+          fill: getConstraintFill(item.val),
+          alignment: ALIGN_CENTER,
+          border: THIN_BORDER,
+          numFmt: "0.000",
+        });
+      } else {
+        setCell(mRow, baseCol + 1 + i, "—", {
+          font: { size: 10, color: { argb: "FFC0C0C0" } },
+          fill: FILL_CONSTRAINT_ROW,
+          alignment: ALIGN_CENTER,
+          border: THIN_BORDER,
+        });
+      }
+    });
+    // 右侧：最大雇佣
+    setCell(mRow, baseCol + 5, rightLabels[5], { font: FONT_LABEL, fill: FILL_PARAM_LABEL, alignment: ALIGN_RIGHT, border: THIN_BORDER });
+    setCell(mRow, baseCol + 6, rightValues[5], { font: FONT_BOLD, alignment: ALIGN_CENTER, border: THIN_BORDER });
 
-    // 总产量行
+    // --- 汇总行 ---
     const tRow = baseRow + 8;
-    data[tRow][baseCol] = `总产量: ${total}`;
-    data[tRow][baseCol + 1] = `A:${r.totalOutput.A}`;
-    data[tRow][baseCol + 2] = `B:${r.totalOutput.B}`;
-    data[tRow][baseCol + 3] = `C:${r.totalOutput.C}`;
-    data[tRow][baseCol + 4] = `D:${r.totalOutput.D}`;
-    data[tRow][baseCol + 5] = rightLabels[6];
-    data[tRow][baseCol + 6] = rightValues[6];
+    setCell(tRow, baseCol, `总产量: ${total}`, {
+      font: { bold: true, size: 10, color: { argb: "FF92400E" } },
+      fill: FILL_SUMMARY,
+      alignment: ALIGN_LEFT,
+      border: THIN_BORDER,
+    });
+    setCell(tRow, baseCol + 1, `A:${r.totalOutput.A}`, { font: FONT_NORMAL, fill: FILL_SUMMARY, alignment: ALIGN_CENTER, border: THIN_BORDER });
+    setCell(tRow, baseCol + 2, `B:${r.totalOutput.B}`, { font: FONT_NORMAL, fill: FILL_SUMMARY, alignment: ALIGN_CENTER, border: THIN_BORDER });
+    setCell(tRow, baseCol + 3, `C:${r.totalOutput.C}`, { font: FONT_NORMAL, fill: FILL_SUMMARY, alignment: ALIGN_CENTER, border: THIN_BORDER });
+    setCell(tRow, baseCol + 4, `D:${r.totalOutput.D}`, { font: FONT_NORMAL, fill: FILL_SUMMARY, alignment: ALIGN_CENTER, border: THIN_BORDER });
+    // 右侧：本期雇佣
+    setCell(tRow, baseCol + 5, rightLabels[6], { font: FONT_LABEL, fill: FILL_PARAM_LABEL, alignment: ALIGN_RIGHT, border: THIN_BORDER });
+    setCell(tRow, baseCol + 6, rightValues[6], { font: FONT_BOLD, alignment: ALIGN_CENTER, border: THIN_BORDER });
+
+    // 设置行高
+    for (let ri = baseRow + 1; ri <= tRow; ri++) {
+      ws.getRow(ri).height = 20;
+    }
   });
 
-  const ws = XLSX.utils.aoa_to_sheet(data);
-
-  // 设置列宽
-  ws["!cols"] = Array.from({ length: totalCols }, (_, i) => {
-    const posInBlock = i % (COLS_PER_CARD + COL_GAP);
-    if (posInBlock === COLS_PER_CARD) return { wch: 2 }; // 间隔列
-    if (posInBlock === 0) return { wch: 10 }; // 班次列
-    if (posInBlock === 5) return { wch: 10 }; // 参数名列
-    if (posInBlock === 6) return { wch: 8 }; // 参数值列
-    return { wch: 9 }; // 数值列
-  });
-
-  XLSX.utils.book_append_sheet(wb, ws, "生产总览");
-  XLSX.writeFile(wb, `生产总览_${schemeName || "排产方案"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  // ============ 导出文件 ============
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  saveAs(blob, `生产总览_${schemeName || "排产方案"}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 // ============================================================

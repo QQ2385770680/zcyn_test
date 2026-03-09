@@ -1,19 +1,20 @@
 /**
  * DecisionDomainLayout — 决策域通用布局
- * 每个决策域包含三个标签页：生产模拟、方案设计、我的方案
+ * 四个标签页：全局总览、生产模拟、方案设计、我的方案
  * 设计风格：方案B — 胶囊按钮组 + 图标
  * 选中项为翠绿色填充胶囊（白色文字+图标），未选中项为透明底+灰色文字
  */
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useLocation } from "wouter";
 import React, { useTransition } from "react";
-import { Factory, Target, FolderOpen } from "lucide-react";
+import { LayoutDashboard, Factory, Target, FolderOpen } from "lucide-react";
 
 interface DecisionDomainLayoutProps {
   title: string;
   description: string;
   icon: React.ReactNode;
   basePath: string;
+  overviewContent: React.ReactNode;
   simulatorContent: React.ReactNode;
   designerContent: React.ReactNode;
   plansContent: React.ReactNode;
@@ -21,6 +22,7 @@ interface DecisionDomainLayoutProps {
 }
 
 const tabItems = [
+  { value: "overview", label: "全局总览", icon: LayoutDashboard },
   { value: "simulator", label: "生产模拟", icon: Factory },
   { value: "designer", label: "方案设计", icon: Target },
   { value: "plans", label: "我的方案", icon: FolderOpen },
@@ -31,6 +33,7 @@ export function DecisionDomainLayout({
   description,
   icon,
   basePath,
+  overviewContent,
   simulatorContent,
   designerContent,
   plansContent,
@@ -38,9 +41,12 @@ export function DecisionDomainLayout({
   const [location, setLocation] = useLocation();
 
   const getActiveTab = () => {
+    if (location.endsWith("/overview")) return "overview";
     if (location.endsWith("/designer")) return "designer";
     if (location.endsWith("/plans")) return "plans";
-    return "simulator";
+    if (location.endsWith("/simulator")) return "simulator";
+    // 默认显示全局总览
+    return "overview";
   };
 
   const activeTab = getActiveTab();
@@ -48,8 +54,7 @@ export function DecisionDomainLayout({
 
   const handleTabChange = (value: string) => {
     startTransition(() => {
-      if (value === "simulator") setLocation(`${basePath}/simulator`);
-      else setLocation(`${basePath}/${value}`);
+      setLocation(`${basePath}/${value}`);
     });
   };
 
@@ -93,6 +98,9 @@ export function DecisionDomainLayout({
         </div>
 
         <div className={`mt-4 transition-opacity duration-150 ${isPending ? 'opacity-60' : 'opacity-100'}`}>
+          <TabsContent value="overview" className="mt-0">
+            {overviewContent}
+          </TabsContent>
           <TabsContent value="simulator" className="mt-0">
             {simulatorContent}
           </TabsContent>
